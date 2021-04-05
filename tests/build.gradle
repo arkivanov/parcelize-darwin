@@ -7,7 +7,7 @@ buildscript {
     dependencies {
         classpath "com.android.tools.build:gradle:4.2.0-beta04"
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath "com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin:1.0"
+        classpath "com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin"
     }
 }
 
@@ -25,7 +25,7 @@ kotlin {
     sourceSets {
         iosTest {
             dependencies {
-                implementation "com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin-runtime:1.0"
+                implementation "com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin-runtime"
             }
         }
     }
