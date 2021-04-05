@@ -104,6 +104,7 @@ The plugin can be used to write `Parcelable` classes in the `commonMain` source 
 
 ```kotlin
 expect interface Parcelable
+
 @OptIn(ExperimentalMultiplatform::class)
 @OptionalExpectation
 @Target(AnnotationTarget.CLASS)
