@@ -1,4 +1,4 @@
-## kotlin-parcelize-darwin
+# kotlin-parcelize-darwin
 
 Kotlin/Native compiler plugin generating `Parcelable` implementations for Darwin/Apple.
 Allows writing `Parcelable` classes for iOS (eventually for all Darwin targets, possibly),
@@ -15,7 +15,7 @@ Supported types:
 - `Parcelable` classes
 - Collections: `List`, `MutableList`, `Set`, `MutableSet`, `Map`, `MutableMap` of all supported types
 
-### Setup
+## Setup
 
 The plugin is not published yet, but can be used when published locally.
 
@@ -55,7 +55,7 @@ kotlin {
 }
 ```
 
-### Using
+## Using
 
 The plugin works similary to the Android's `kotlin-parcelize` plugin.
 
@@ -96,7 +96,7 @@ fun decode(coder: NSCoder) {
 }
 ```
 
-#### Writing Parcelables in commonMain
+### Writing Parcelables in commonMain
 
 The plugin can be used to write `Parcelable` classes in the `commonMain` source set:
 
@@ -136,11 +136,17 @@ actual interface Parcelable
 Now you should be able to use `Parcelize` feature as usual in the `commonMain` source set.
 The code will be automatically generated for Android and iOS, without affecting all other targets.
 
-#### Limitations
+### Limitations
 
 There is no proper IDE support at the moment. So `Parcelable` classes in the `iosMain` source set
 are highlighted as incomplete, but the code still compiles just fine. There are no IDE errors in the `commonMain` source set.
 
-#### Tests as using examples
+### Tests as using examples
 
 Some tests can be found [here](https://github.com/arkivanov/kotlin-parcelize-darwin/blob/master/tests/src/iosTest/kotlin/com/arkivanov/parcelize/darwin/tests/ParcelizeTest.kt).
+
+## Author
+
+Twitter: [@arkann1985](https://twitter.com/arkann1985)
+
+If you like this project you can always <a href="https://www.buymeacoffee.com/arkivanov" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-blue.png" alt="Buy Me A Coffee" height=32></a> ;-)
