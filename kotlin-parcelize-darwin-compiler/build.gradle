@@ -1,0 +1,32 @@
+plugins {
+    id("org.jetbrains.kotlin.jvm")
+    id("org.jetbrains.kotlin.kapt")
+    id("maven-publish")
+}
+
+dependencies {
+    compileOnly "org.jetbrains.kotlin:kotlin-stdlib"
+    compileOnly "org.jetbrains.kotlin:kotlin-compiler"
+
+    kapt "com.google.auto.service:auto-service:1.0-rc7"
+    compileOnly "com.google.auto.service:auto-service-annotations:1.0-rc7"
+}
+
+group = "com.arkivanov.parcelize.darwin"
+version = "0.1.0"
+archivesBaseName = "kotlin-parcelize-darwin-compiler"
+
+compileKotlin {
+    kotlinOptions {
+        jvmTarget = "1.8"
+        freeCompilerArgs += ['-Xjvm-default=enable']
+    }
+}
+
+publishing {
+    publications {
+        register("pluginMaven", MavenPublication.class) {
+            from(components["java"])
+        }
+    }
+}

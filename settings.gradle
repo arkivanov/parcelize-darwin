@@ -1,0 +1,4 @@
+include ':kotlin-parcelize-darwin'
+include ':kotlin-parcelize-darwin-compiler'
+include ':kotlin-parcelize-darwin-compiler-j'
+include ':kotlin-parcelize-darwin-runtime'

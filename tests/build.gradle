@@ -1,0 +1,32 @@
+buildscript {
+    ext.kotlin_version = "1.4.31"
+    repositories {
+        google()
+        jcenter()
+    }
+    dependencies {
+        classpath "com.android.tools.build:gradle:4.2.0-beta04"
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+        classpath "com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin:1.0"
+    }
+}
+
+apply plugin: "kotlin-multiplatform"
+apply plugin: "kotlin-parcelize-darwin"
+
+repositories {
+    google()
+    jcenter()
+}
+
+kotlin {
+    ios()
+
+    sourceSets {
+        iosTest {
+            dependencies {
+                implementation "com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin-runtime:1.0"
+            }
+        }
+    }
+}

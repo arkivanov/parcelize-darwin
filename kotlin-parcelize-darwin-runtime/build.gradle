@@ -1,0 +1,11 @@
+plugins {
+    id("kotlin-multiplatform")
+    id("maven-publish")
+}
+
+group = "com.arkivanov.parcelize.darwin"
+version = "0.1.0"
+
+kotlin {
+    ios()
+}
