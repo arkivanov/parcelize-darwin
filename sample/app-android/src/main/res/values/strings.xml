@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Parcelize Sample</string>
+    <string name="value_fmt">Value: %1$d</string>
+    <string name="generate">Generate</string>
+</resources>

@@ -1,0 +1,25 @@
+plugins.apply('com.android.application')
+plugins.apply('kotlin-android')
+
+android {
+    compileSdkVersion 30
+
+    defaultConfig {
+        targetSdkVersion 30
+        minSdkVersion 28
+
+        applicationId "com.arkivanov.parcelize.sample.app"
+        versionCode 1
+        versionName "1.0"
+    }
+
+    packagingOptions {
+        exclude 'META-INF/*'
+    }
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation "androidx.appcompat:appcompat:1.2.0"
+    implementation project(':shared')
+}
