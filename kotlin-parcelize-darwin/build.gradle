@@ -2,6 +2,7 @@ plugins {
     id("java-gradle-plugin")
     id("org.jetbrains.kotlin.jvm")
     id("maven-publish")
+    id("com.github.gmazzo.buildconfig")
 }
 
 gradlePlugin {
@@ -14,13 +15,18 @@ gradlePlugin {
 }
 
 group = "com.arkivanov.parcelize.darwin"
-version = "0.1.0"
+version = pluginVersion
 
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib"
     implementation "org.jetbrains.kotlin:kotlin-gradle-plugin-api"
+    compileOnly("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
 }
 
 compileKotlin {
     kotlinOptions.jvmTarget = "1.8"
+}
+
+buildConfig {
+    buildConfigField('String', 'VERSION', "\"$pluginVersion\"")
 }

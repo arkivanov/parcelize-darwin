@@ -1,4 +1,4 @@
-package com.arkivanov.parcelize.darwin.compiler
+package com.arkivanov.parcelize.darwin
 
 import org.jetbrains.kotlin.backend.common.extensions.IrGenerationExtension
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext

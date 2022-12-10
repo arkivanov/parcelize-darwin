@@ -6,14 +6,14 @@ plugins {
 
 dependencies {
     compileOnly "org.jetbrains.kotlin:kotlin-stdlib"
-    compileOnly "org.jetbrains.kotlin:kotlin-compiler"
+    compileOnly "org.jetbrains.kotlin:kotlin-compiler-embeddable"
 
-    kapt "com.google.auto.service:auto-service:1.0-rc7"
-    compileOnly "com.google.auto.service:auto-service-annotations:1.0-rc7"
+    kapt "com.google.auto.service:auto-service:1.0.1"
+    compileOnly "com.google.auto.service:auto-service-annotations:1.0.1"
 }
 
 group = "com.arkivanov.parcelize.darwin"
-version = "0.1.0"
+version = pluginVersion
 archivesBaseName = "kotlin-parcelize-darwin-compiler"
 
 compileKotlin {

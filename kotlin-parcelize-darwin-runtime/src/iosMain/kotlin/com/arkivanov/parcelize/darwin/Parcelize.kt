@@ -1,4 +1,4 @@
-package com.arkivanov.parcelize.darwin.runtime
+package com.arkivanov.parcelize.darwin
 
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.BINARY)

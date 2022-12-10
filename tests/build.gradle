@@ -1,11 +1,10 @@
 buildscript {
-    ext.kotlin_version = "1.4.31"
+    ext.kotlin_version = "1.7.21"
     repositories {
         google()
         jcenter()
     }
     dependencies {
-        classpath "com.android.tools.build:gradle:4.2.0-beta04"
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath "com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin"
     }
@@ -20,13 +19,27 @@ repositories {
 }
 
 kotlin {
-    ios()
+    iosX64()
+    iosArm64()
+    iosSimulatorArm64()
 
     sourceSets {
-        iosTest {
+        iosMain {
+            dependsOn(commonMain)
+
             dependencies {
                 implementation "com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin-runtime"
             }
         }
+
+        iosTest.dependsOn(commonTest)
+
+        iosX64Main.dependsOn(iosMain)
+        iosArm64Main.dependsOn(iosMain)
+        iosSimulatorArm64Main.dependsOn(iosMain)
+
+        iosX64Test.dependsOn(iosTest)
+        iosArm64Test.dependsOn(iosTest)
+        iosSimulatorArm64Test.dependsOn(iosTest)
     }
 }

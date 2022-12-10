@@ -1,8 +1,10 @@
 package com.arkivanov.parcelize.darwin.tests
 
-import com.arkivanov.parcelize.darwin.runtime.DecodedValue
-import com.arkivanov.parcelize.darwin.runtime.Parcelable
-import com.arkivanov.parcelize.darwin.runtime.Parcelize
+import com.arkivanov.parcelize.darwin.DecodedValue
+import com.arkivanov.parcelize.darwin.Parcelable
+import com.arkivanov.parcelize.darwin.Parcelize
+import com.arkivanov.parcelize.darwin.decodeParcelable
+import com.arkivanov.parcelize.darwin.encodeParcelable
 import kotlinx.cinterop.Arena
 import kotlinx.cinterop.readBytes
 import kotlinx.cinterop.toCValues
@@ -19,6 +21,8 @@ class ParcelizeTest {
     fun encodes_and_decodes() {
         val some =
             Some(
+                s1 = "str",
+                s2 = null,
                 i1 = 1,
                 i2 = 2,
                 i3 = null,
@@ -46,6 +50,9 @@ class ParcelizeTest {
                 other1 = Other(a = 1),
                 other2 = null,
                 other3 = Other(a = 3),
+                other4 = null,
+                obj1 = Obj,
+                obj2 = null,
                 parcelableList1 = listOf(Other(a = 3), Other(a = 4)),
                 parcelableList2 = null,
                 parcelableList3 = mutableListOf(Other(a = 5), Other(a = 6)),
@@ -67,15 +74,15 @@ class ParcelizeTest {
                 map3 = mutableMapOf("a" to Other(3), "b" to Other(4)),
                 map4 = null
             )
-        val coding = some.coding()
-        val data = NSKeyedArchiver.archivedDataWithRootObject(coding)
-        val arr = data.bytes()
-        val len = data.length()
-        val bytes = arr!!.readBytes(len.toInt())
-        val scope = Arena()
 
-        val data2: NSData = NSData.dataWithBytes(bytes.toCValues().getPointer(scope), len)
-        val some2 = (NSKeyedUnarchiver.unarchiveObjectWithData(data2) as DecodedValue).value as Some
+        val arch = NSKeyedArchiver(requiringSecureCoding = true)
+        arch.encodeParcelable(value = some, key = "some")
+        val data = arch.encodedData
+
+        val unarch = NSKeyedUnarchiver(forReadingWithData = data)
+        unarch.requiresSecureCoding = true
+        val some2 = unarch.decodeParcelable("some")
+
         assertEquals(some, some2)
     }
 
@@ -85,7 +92,12 @@ class ParcelizeTest {
     ) : SomeClass()
 
     @Parcelize
+    private object Obj : Parcelable
+
+    @Parcelize
     private data class Some(
+        val s1: String,
+        val s2: String?,
         val i1: Int,
         val i2: Int?,
         val i3: Int?,
@@ -112,7 +124,10 @@ class ParcelizeTest {
         val z3: Boolean?,
         val other1: Other,
         val other2: Other?,
-        val other3: Parcelable?,
+        val other3: Parcelable,
+        val other4: Parcelable?,
+        val obj1: Obj,
+        val obj2: Obj?,
         val parcelableList1: List<Other>,
         val parcelableList2: List<Other>?,
         val parcelableList3: MutableList<Other>?,

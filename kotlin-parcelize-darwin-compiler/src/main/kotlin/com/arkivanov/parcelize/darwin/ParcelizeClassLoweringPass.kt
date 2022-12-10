@@ -1,15 +1,12 @@
-package com.arkivanov.parcelize.darwin.compiler
+package com.arkivanov.parcelize.darwin
 
-import com.arkivanov.parcelize.darwin.compiler.ParcelizeClassLoweringPass.FieldValueDecoder
+import com.arkivanov.parcelize.darwin.ParcelizeClassLoweringPass.FieldValueDecoder
 import org.jetbrains.kotlin.backend.common.ClassLoweringPass
-import org.jetbrains.kotlin.backend.common.ir.addChild
-import org.jetbrains.kotlin.backend.common.ir.addSimpleDelegatingConstructor
-import org.jetbrains.kotlin.backend.common.ir.copyTo
-import org.jetbrains.kotlin.backend.common.ir.createImplicitParameterDeclarationWithWrappedDescriptor
 import org.jetbrains.kotlin.backend.wasm.ir2wasm.getSuperClass
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
+import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
 import org.jetbrains.kotlin.ir.builders.IrBlockBodyBuilder
 import org.jetbrains.kotlin.ir.builders.declarations.addFunction
@@ -21,7 +18,9 @@ import org.jetbrains.kotlin.ir.builders.declarations.buildField
 import org.jetbrains.kotlin.ir.builders.irCall
 import org.jetbrains.kotlin.ir.builders.irGet
 import org.jetbrains.kotlin.ir.builders.irGetField
+import org.jetbrains.kotlin.ir.builders.irGetObject
 import org.jetbrains.kotlin.ir.builders.irReturn
+import org.jetbrains.kotlin.ir.builders.irReturnTrue
 import org.jetbrains.kotlin.ir.builders.irString
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrConstructor
@@ -38,18 +37,23 @@ import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
 import org.jetbrains.kotlin.ir.expressions.impl.IrGetValueImpl
 import org.jetbrains.kotlin.ir.interpreter.toIrConst
-import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.classOrNull
 import org.jetbrains.kotlin.ir.types.defaultType
+import org.jetbrains.kotlin.ir.types.isNullable
 import org.jetbrains.kotlin.ir.types.isSubtypeOfClass
-import org.jetbrains.kotlin.ir.types.withHasQuestionMark
+import org.jetbrains.kotlin.ir.types.makeNullable
+import org.jetbrains.kotlin.ir.util.addChild
+import org.jetbrains.kotlin.ir.util.addSimpleDelegatingConstructor
 import org.jetbrains.kotlin.ir.util.constructors
+import org.jetbrains.kotlin.ir.util.copyTo
+import org.jetbrains.kotlin.ir.util.createImplicitParameterDeclarationWithWrappedDescriptor
 import org.jetbrains.kotlin.ir.util.defaultType
 import org.jetbrains.kotlin.ir.util.dump
 import org.jetbrains.kotlin.ir.util.functions
 import org.jetbrains.kotlin.ir.util.getSimpleFunction
+import org.jetbrains.kotlin.ir.util.isObject
 import org.jetbrains.kotlin.ir.util.primaryConstructor
 import org.jetbrains.kotlin.ir.util.properties
 import org.jetbrains.kotlin.name.Name
@@ -60,7 +64,7 @@ class ParcelizeClassLoweringPass(
 ) : ClassLoweringPass, Context by context {
 
     override fun lower(irClass: IrClass) {
-        if (!irClass.toIrBasedDescriptor().isValidForParcelize()) {
+        if (!irClass.toIrBasedDescriptor().isParcelize()) {
             return
         }
 
@@ -80,6 +84,9 @@ class ParcelizeClassLoweringPass(
         codingClass.addEncodeWithCoderFunction(irClass, dataGetter)
         codingClass.addInitWithCoderFunction(irClass)
 
+        val codingCompanionClass = codingClass.addCodingCompanionObject()
+        codingCompanionClass.addSupportsSecureCodingFunction()
+
         irClass.generateCodingBody(codingClass)
     }
 
@@ -91,13 +98,43 @@ class ParcelizeClassLoweringPass(
                 name = Name.identifier("CodingImpl")
                 kind = ClassKind.CLASS
                 visibility = DescriptorVisibilities.PRIVATE
+                modality = Modality.FINAL
             }
             .also(::addChild)
             .apply {
-                superTypes = listOf(nsObjectType, nsCodingType)
+                superTypes = listOf(nsLockType, nsCodingType)
                 annotations = listOf(getExportObjCClassAnnotationCall(name = getFullCapitalizedName()))
                 createImplicitParameterDeclarationWithWrappedDescriptor()
             }
+
+    private fun IrClass.addCodingCompanionObject(): IrClass =
+        irFactory
+            .buildClass {
+                name = Name.identifier("Companion")
+                kind = ClassKind.OBJECT
+                visibility = DescriptorVisibilities.PUBLIC
+                modality = Modality.FINAL
+                isCompanion = true
+            }
+            .also(::addChild)
+            .apply {
+                superTypes = listOf(nsObjectType, nsCodingMetaType)
+                createImplicitParameterDeclarationWithWrappedDescriptor()
+            }
+
+    private fun IrClass.addSupportsSecureCodingFunction() {
+        addFunction {
+            name = Name.identifier("supportsSecureCoding")
+            returnType = booleanType
+        }.apply {
+            overriddenSymbols = listOf(nsCodingMetaClass.getSimpleFunction("supportsSecureCoding")!!)
+            dispatchReceiverParameter = this@addSupportsSecureCodingFunction.thisReceiver?.copyTo(this)
+
+            setBody(pluginContext) {
+                +irReturnTrue()
+            }
+        }
+    }
 
     private fun getExportObjCClassAnnotationCall(name: String = ""): IrConstructorCall =
         pluginContext
@@ -187,11 +224,15 @@ class ParcelizeClassLoweringPass(
             val coder = irGet(coderArgument)
 
             mainClass.properties.mapNotNull(IrProperty::backingField).forEach { field ->
-                addEncodeFieldStatement(
-                    field = field,
-                    data = data,
-                    coder = coder
-                )
+                try {
+                    addEncodeFieldStatement(
+                        field = field,
+                        data = data,
+                        coder = coder
+                    )
+                } catch (e: Throwable) {
+                    throw IllegalStateException("Error generating encode statement for field: ${field.description}", e)
+                }
             }
         }
     }
@@ -234,10 +275,15 @@ class ParcelizeClassLoweringPass(
             fieldType == charNType -> encode("$packageRuntime.encodeCharOrNull")
             fieldType == booleanType -> encode("$packageFoundation.encodeBool")
             fieldType == booleanNType -> encode("$packageRuntime.encodeBooleanOrNull")
-            fieldType in listOf(stringType, stringNType) -> encode("$packageFoundation.encodeString", stringNType)
+            fieldType == stringType -> encode("$packageRuntime.encodeString")
+            fieldType == stringNType -> encode("$packageRuntime.encodeStringOrNull")
 
             fieldType.isParcelable() ->
-                encode("$packageRuntime.encodeParcelable", parcelableType)
+                if (fieldType.isNullable()) {
+                    encode("$packageRuntime.encodeParcelableOrNull", parcelableNType)
+                } else {
+                    encode("$packageRuntime.encodeParcelable", parcelableType)
+                }
 
             fieldType.classOrNull!! in listOf(listClass, mutableListClass, setClass, mutableSetClass) ->
                 encode("$packageRuntime.encodeCollection", collectionType)
@@ -260,7 +306,7 @@ class ParcelizeClassLoweringPass(
     private fun IrClass.addInitWithCoderFunction(mainClass: IrClass) {
         addFunction {
             name = Name.identifier("initWithCoder")
-            returnType = pluginContext.referenceClass(nsCodingName)!!.defaultType.withHasQuestionMark(true) // FIXME: x
+            returnType = pluginContext.referenceClass(nsCodingName)!!.defaultType.makeNullable() // FIXME: x
         }.apply {
             overriddenSymbols = listOf(nsCodingClass.getSimpleFunction("initWithCoder")!!)
             dispatchReceiverParameter = this@addInitWithCoderFunction.thisReceiver?.copyTo(this)
@@ -278,20 +324,33 @@ class ParcelizeClassLoweringPass(
         val coderArgument = valueParameters[0]
 
         setBody(pluginContext) {
-            val coder = irGet(coderArgument)
-            val dataConstructorCall = mainClass.primaryConstructor!!.toIrConstructorCall()
-
-            mainClass.properties.mapNotNull(IrProperty::backingField).forEachIndexed { index, field ->
-                addDecodeFieldStatement(
-                    field = field,
-                    index = index,
-                    dataConstructorCall = dataConstructorCall,
-                    coder = coder
-                )
-            }
-
             val valueConstructorCall = decodedValueClass.owner.primaryConstructor!!.toIrConstructorCall()
-            valueConstructorCall.putValueArgument(0, dataConstructorCall)
+
+            if (mainClass.isObject) {
+                valueConstructorCall.putValueArgument(0, irGetObject(mainClass.symbol))
+            } else {
+                val coder = irGet(coderArgument)
+                val dataConstructorCall = mainClass.primaryConstructor!!.toIrConstructorCall()
+
+                val valueParameterNames = mainClass.primaryConstructor!!.valueParameters.map { it.name }
+                mainClass.properties
+                    .filter { it.name in valueParameterNames }
+                    .mapNotNull(IrProperty::backingField)
+                    .forEachIndexed { index, field ->
+                        try {
+                            addDecodeFieldStatement(
+                                field = field,
+                                index = index,
+                                dataConstructorCall = dataConstructorCall,
+                                coder = coder
+                            )
+                        } catch (e: Throwable) {
+                            throw IllegalStateException("Error generating decode statement for field: ${field.description}", e)
+                        }
+                    }
+
+                valueConstructorCall.putValueArgument(0, dataConstructorCall)
+            }
 
             +irReturn(valueConstructorCall)
         }
@@ -340,9 +399,15 @@ class ParcelizeClassLoweringPass(
             fieldType == charNType -> decode("$packageRuntime.decodeCharOrNull")
             fieldType == booleanType -> decode("$packageFoundation.decodeBoolForKey")
             fieldType == booleanNType -> decode("$packageRuntime.decodeBooleanOrNull")
+            fieldType == stringType -> decode("$packageRuntime.decodeString")
+            fieldType == stringNType -> decode("$packageRuntime.decodeStringOrNull")
 
             fieldType.isSubtypeOfClass(parcelableClass) ->
-                decode("$packageRuntime.decodeParcelable")
+                if (fieldType.isNullable()) {
+                    decode("$packageRuntime.decodeParcelableOrNull")
+                } else {
+                    decode("$packageRuntime.decodeParcelable")
+                }
 
             fieldType.classOrNull!! in listOf(listClass, mutableListClass) ->
                 decode("$packageRuntime.decodeList")
@@ -387,14 +452,6 @@ class ParcelizeClassLoweringPass(
             irBuiltIns = irBuiltIns,
             isPrimary = true
         )
-
-
-    private fun IrClassSymbol.getCodingName(): String? =
-        when {
-            isParcelable() -> "Parcelable"
-            this == stringClass -> "String"
-            else -> null
-        }
 
     private fun unsupportedFieldError(field: IrField): Nothing =
         error("Unsupported field: ${field.dump()}")

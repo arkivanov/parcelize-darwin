@@ -1,32 +1,42 @@
-package com.arkivanov.parcelize.darwin.runtime
+package com.arkivanov.parcelize.darwin
 
-import platform.Foundation.NSCoder
-import platform.Foundation.decodeBoolForKey
-import platform.Foundation.decodeDoubleForKey
-import platform.Foundation.decodeFloatForKey
-import platform.Foundation.decodeInt32ForKey
-import platform.Foundation.decodeInt64ForKey
-import platform.Foundation.decodeObjectForKey
-import platform.Foundation.encodeBool
-import platform.Foundation.encodeDouble
-import platform.Foundation.encodeFloat
-import platform.Foundation.encodeInt32
-import platform.Foundation.encodeInt64
-import platform.Foundation.encodeObject
+import platform.Foundation.*
 
-fun NSCoder.encodeParcelable(value: Parcelable?, key: String) {
-    encodeObject(value?.coding(), key)
+fun NSCoder.encodeParcelableOrNull(value: Parcelable?, key: String) {
+    encodeNullableObject(value, key, ) { v, k ->
+        encodeParcelable(v, k)
+    }
 }
 
-fun NSCoder.decodeParcelable(key: String): Parcelable? =
-    (decodeObjectForKey(key) as DecodedValue?)?.value
+fun NSCoder.decodeParcelableOrNull(key: String): Parcelable? {
+    return decodeNullableObject(key) { k ->
+        decodeParcelable(k)
+    }
+}
 
-fun NSCoder.encodeString(value: String?, key: String) {
+fun NSCoder.encodeParcelable(value: Parcelable, key: String) {
+    val nsCoding = requireNotNull(value.coding()) { "Coding returned by ${value::class} is null" }
+    encodeObject(nsCoding, key)
+}
+
+fun NSCoder.decodeParcelable(key: String): Parcelable {
+    return (decodeObjectOfClass(aClass = NSLock, forKey = key) as DecodedValue).value!!
+}
+
+fun NSCoder.encodeString(value: String, key: String) {
     encodeObject(value, key)
 }
 
-fun NSCoder.decodeString(key: String): String? =
-    decodeObjectForKey(key) as String?
+fun NSCoder.decodeString(key: String): String {
+    return decodeObjectOfClass(aClass = NSString, forKey = key) as String
+}
+
+fun NSCoder.encodeStringOrNull(value: String?, key: String) {
+    encodeObject(value, key)
+}
+
+fun NSCoder.decodeStringOrNull(key: String): String? =
+    decodeObjectOfClass(aClass = NSString, forKey = key) as String?
 
 fun NSCoder.encodeIntOrNull(value: Int?, key: String) {
     encodeNullableObject(value, key, NSCoder::encodeInt32)
@@ -85,14 +95,14 @@ fun NSCoder.decodeByteOrNull(key: String): Byte? =
     decodeNullableObject(key, NSCoder::decodeInt32ForKey)?.toByte()
 
 fun NSCoder.encodeChar(value: Char, key: String) {
-    encodeInt32(value.toInt(), key)
+    encodeInt32(value.code, key)
 }
 
 fun NSCoder.decodeChar(key: String): Char =
     decodeInt32ForKey(key).toChar()
 
 fun NSCoder.encodeCharOrNull(value: Char?, key: String) {
-    encodeNullableObject(value?.toInt(), key, NSCoder::encodeInt32)
+    encodeNullableObject(value?.code, key, NSCoder::encodeInt32)
 }
 
 fun NSCoder.decodeCharOrNull(key: String): Char? =
@@ -130,7 +140,7 @@ fun NSCoder.encodeCollection(value: Collection<Any?>?, key: String) {
         when (item) {
             is Parcelable? -> {
                 encodeItemType(ItemType.PARCELABLE, itemTypeKey)
-                encodeParcelable(item, itemKey)
+                encodeParcelableOrNull(item, itemKey)
             }
 
             is String -> {
@@ -156,7 +166,7 @@ private fun <C : MutableCollection<Any?>> NSCoder.decodeCollection(key: String, 
 
         collection +=
             when (itemType) {
-                ItemType.PARCELABLE -> decodeParcelable(itemKey)
+                ItemType.PARCELABLE -> decodeParcelableOrNull(itemKey)
                 ItemType.STRING -> decodeString(itemKey)
             }
     }

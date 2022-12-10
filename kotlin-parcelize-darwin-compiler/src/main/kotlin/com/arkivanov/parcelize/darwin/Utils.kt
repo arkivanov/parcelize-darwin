@@ -1,8 +1,7 @@
-package com.arkivanov.parcelize.darwin.compiler
+package com.arkivanov.parcelize.darwin
 
 import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.backend.common.lower.DeclarationIrBuilder
-import org.jetbrains.kotlin.backend.common.lower.parentsWithSelf
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
@@ -10,6 +9,7 @@ import org.jetbrains.kotlin.ir.builders.IrBlockBodyBuilder
 import org.jetbrains.kotlin.ir.builders.irBlockBody
 import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrConstructor
+import org.jetbrains.kotlin.ir.declarations.IrField
 import org.jetbrains.kotlin.ir.declarations.IrFunction
 import org.jetbrains.kotlin.ir.expressions.IrBlockBody
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
@@ -19,38 +19,32 @@ import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.classFqName
 import org.jetbrains.kotlin.ir.types.defaultType
-import org.jetbrains.kotlin.ir.util.kotlinFqName
 import org.jetbrains.kotlin.ir.util.packageFqName
 import org.jetbrains.kotlin.ir.util.parentClassOrNull
 import org.jetbrains.kotlin.ir.util.superTypes
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
-import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameOrNull
-import org.jetbrains.kotlin.resolve.descriptorUtil.getSuperClassNotAny
-import org.jetbrains.kotlin.resolve.descriptorUtil.getSuperInterfaces
-
-val parcelizeName = FqName("com.arkivanov.parcelize.darwin.runtime.Parcelize")
-val parcelableName = FqName("com.arkivanov.parcelize.darwin.runtime.Parcelable")
-val decodedValueName = FqName("com.arkivanov.parcelize.darwin.runtime.DecodedValue")
-val nsCodingName = FqName("platform.Foundation.NSCodingProtocol")
-val nsCoderName = FqName("platform.Foundation.NSCoder")
-val nsObjectName = FqName("platform.darwin.NSObject")
-val exportObjCClassName = FqName("kotlinx.cinterop.ExportObjCClass")
-val codingName = Name.identifier("coding")
 
 const val packageFoundation: String = "platform.Foundation"
-const val packageRuntime: String = "com.arkivanov.parcelize.darwin.runtime"
+const val packageRuntime: String = "com.arkivanov.parcelize.darwin"
+
+val parcelizeName = FqName("$packageRuntime.Parcelize")
+val parcelableName = FqName("$packageRuntime.Parcelable")
+val decodedValueName = FqName("$packageRuntime.DecodedValue")
+val nsCodingName = FqName("$packageFoundation.NSSecureCodingProtocol")
+val nsCodingMetaName = FqName("$packageFoundation.NSSecureCodingProtocolMeta")
+val nsCoderName = FqName("$packageFoundation.NSCoder")
+val nsObjectName = FqName("platform.darwin.NSObject")
+val nsLockName = FqName("$packageFoundation.NSLock")
+val exportObjCClassName = FqName("kotlinx.cinterop.ExportObjCClass")
+val codingName = Name.identifier("coding")
 
 fun MessageCollector.log(text: String) {
     report(CompilerMessageSeverity.STRONG_WARNING, text)
 }
 
-fun ClassDescriptor.isValidForParcelize(): Boolean =
-    annotations.hasAnnotation(parcelizeName) && implementsInterface(parcelableName)
-
-private fun ClassDescriptor.implementsInterface(name: FqName): Boolean =
-    getSuperInterfaces().any { (it.fqNameOrNull() == name) || it.implementsInterface(name) } ||
-        (getSuperClassNotAny()?.implementsInterface(name) == true)
+fun ClassDescriptor.isParcelize(): Boolean =
+    annotations.hasAnnotation(parcelizeName)
 
 fun IrType.isParcelable(): Boolean =
     (classFqName == parcelableName) ||
@@ -97,9 +91,12 @@ fun IrPluginContext.referenceFunction(
     valueParameterTypes: List<IrType> = emptyList()
 ): IrSimpleFunctionSymbol =
     referenceFunctions(FqName(name))
-        .first {
+        .firstOrNull {
             (it.owner.extensionReceiverParameter?.type == extensionReceiverParameterType) &&
                 (it.owner.valueParameters.map { it.type.classFqName } == valueParameterTypes.map { it.classFqName })
-        }
+        } ?: error("Function $name not found")
 
 fun <T : Any> T?.require(): T = requireNotNull(this)
+
+val IrField.description: String
+    get() = "[$name: ${type.classFqName}]"
