@@ -11,21 +11,61 @@ kotlin {
     iosArm64()
     iosSimulatorArm64()
 
+    watchosX64()
+    watchosArm32()
+    watchosArm64()
+    watchosSimulatorArm64()
+
+    tvosX64()
+    tvosArm64()
+    tvosSimulatorArm64()
+
+    macosX64()
+    macosArm64()
+
     sourceSets {
-        iosMain {
+        darwinMain {
             dependsOn(commonMain)
         }
 
-        iosTest {
+        darwinTest {
             dependsOn(commonTest)
         }
 
-        iosX64Main.dependsOn(iosMain)
-        iosArm64Main.dependsOn(iosMain)
-        iosSimulatorArm64Main.dependsOn(iosMain)
 
-        iosX64Test.dependsOn(iosTest)
-        iosArm64Test.dependsOn(iosTest)
-        iosSimulatorArm64Test.dependsOn(iosTest)
+        iosX64Main.dependsOn(darwinMain)
+        iosArm64Main.dependsOn(darwinMain)
+        iosSimulatorArm64Main.dependsOn(darwinMain)
+
+        iosX64Test.dependsOn(darwinTest)
+        iosArm64Test.dependsOn(darwinTest)
+        iosSimulatorArm64Test.dependsOn(darwinTest)
+
+
+        watchosX64Main.dependsOn(darwinMain)
+        watchosArm32Main.dependsOn(darwinMain)
+        watchosArm64Main.dependsOn(darwinMain)
+        watchosSimulatorArm64Main.dependsOn(darwinMain)
+
+        watchosX64Test.dependsOn(darwinTest)
+        watchosArm32Test.dependsOn(darwinTest)
+        watchosArm64Test.dependsOn(darwinTest)
+        watchosSimulatorArm64Test.dependsOn(darwinTest)
+
+
+        tvosX64Main.dependsOn(darwinMain)
+        tvosArm64Main.dependsOn(darwinMain)
+        tvosSimulatorArm64Main.dependsOn(darwinMain)
+
+        tvosX64Test.dependsOn(darwinTest)
+        tvosArm64Test.dependsOn(darwinTest)
+        tvosSimulatorArm64Test.dependsOn(darwinTest)
+
+
+        macosX64Main.dependsOn(darwinMain)
+        macosArm64Main.dependsOn(darwinMain)
+
+        macosX64Test.dependsOn(darwinTest)
+        macosArm64Test.dependsOn(darwinTest)
     }
 }

@@ -31,12 +31,12 @@ class ParcelizeDarwinPlugin : KotlinCompilerPluginSupportPlugin {
 
     override fun isApplicable(kotlinCompilation: KotlinCompilation<*>): Boolean =
         (kotlinCompilation.target as? KotlinNativeTarget)
-                ?.konanTarget?.family == Family.IOS
+                ?.konanTarget?.family?.isAppleFamily == true
 
     override fun apply(target: Project) {
         val ext = target.kotlinExtension as KotlinMultiplatformExtension
         ext.targets.configureEach { trg ->
-            if ((trg is KotlinNativeTarget) && (trg.konanTarget.family == Family.IOS)) {
+            if ((trg is KotlinNativeTarget) && trg.konanTarget.family.isAppleFamily) {
                 trg.compilations.configureEach { compilation ->
                     compilation.dependencies {
                         implementation("com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin-runtime:$pluginVersion")
