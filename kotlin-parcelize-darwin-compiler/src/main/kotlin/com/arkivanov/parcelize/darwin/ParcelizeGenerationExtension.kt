@@ -11,7 +11,10 @@ class ParcelizeGenerationExtension(
 ) : IrGenerationExtension {
 
     override fun generate(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
-        ParcelizeClassLoweringPass(ContextImpl(pluginContext), logs)
-            .lower(moduleFragment)
+        ParcelizeClassLoweringPass(
+            context = ContextImpl(pluginContext),
+            coderFactory = CoderFactory(DefaultSymbols(pluginContext)),
+            logs = logs,
+        ).lower(moduleFragment)
     }
 }

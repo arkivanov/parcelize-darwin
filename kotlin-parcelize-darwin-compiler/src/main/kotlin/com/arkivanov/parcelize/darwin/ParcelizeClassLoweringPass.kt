@@ -1,6 +1,5 @@
 package com.arkivanov.parcelize.darwin
 
-import com.arkivanov.parcelize.darwin.ParcelizeClassLoweringPass.FieldValueDecoder
 import org.jetbrains.kotlin.backend.common.ClassLoweringPass
 import org.jetbrains.kotlin.backend.wasm.ir2wasm.getSuperClass
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
@@ -8,13 +7,14 @@ import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
-import org.jetbrains.kotlin.ir.builders.IrBlockBodyBuilder
+import org.jetbrains.kotlin.ir.builders.IrBlockBuilder
 import org.jetbrains.kotlin.ir.builders.declarations.addFunction
 import org.jetbrains.kotlin.ir.builders.declarations.addGetter
 import org.jetbrains.kotlin.ir.builders.declarations.addProperty
 import org.jetbrains.kotlin.ir.builders.declarations.addValueParameter
 import org.jetbrains.kotlin.ir.builders.declarations.buildClass
 import org.jetbrains.kotlin.ir.builders.declarations.buildField
+import org.jetbrains.kotlin.ir.builders.irBlock
 import org.jetbrains.kotlin.ir.builders.irCall
 import org.jetbrains.kotlin.ir.builders.irGet
 import org.jetbrains.kotlin.ir.builders.irGetField
@@ -31,18 +31,13 @@ import org.jetbrains.kotlin.ir.declarations.IrProperty
 import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
 import org.jetbrains.kotlin.ir.declarations.IrValueParameter
 import org.jetbrains.kotlin.ir.descriptors.toIrBasedDescriptor
-import org.jetbrains.kotlin.ir.expressions.IrBlockBody
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
 import org.jetbrains.kotlin.ir.expressions.impl.IrGetValueImpl
 import org.jetbrains.kotlin.ir.interpreter.toIrConst
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
-import org.jetbrains.kotlin.ir.types.IrType
-import org.jetbrains.kotlin.ir.types.classOrNull
 import org.jetbrains.kotlin.ir.types.defaultType
-import org.jetbrains.kotlin.ir.types.isNullable
-import org.jetbrains.kotlin.ir.types.isSubtypeOfClass
 import org.jetbrains.kotlin.ir.types.makeNullable
 import org.jetbrains.kotlin.ir.util.addChild
 import org.jetbrains.kotlin.ir.util.addSimpleDelegatingConstructor
@@ -50,7 +45,6 @@ import org.jetbrains.kotlin.ir.util.constructors
 import org.jetbrains.kotlin.ir.util.copyTo
 import org.jetbrains.kotlin.ir.util.createImplicitParameterDeclarationWithWrappedDescriptor
 import org.jetbrains.kotlin.ir.util.defaultType
-import org.jetbrains.kotlin.ir.util.dump
 import org.jetbrains.kotlin.ir.util.functions
 import org.jetbrains.kotlin.ir.util.getSimpleFunction
 import org.jetbrains.kotlin.ir.util.isObject
@@ -60,6 +54,7 @@ import org.jetbrains.kotlin.name.Name
 
 class ParcelizeClassLoweringPass(
     context: Context,
+    private val coderFactory: CoderFactory,
     private val logs: MessageCollector
 ) : ClassLoweringPass, Context by context {
 
@@ -214,89 +209,43 @@ class ParcelizeClassLoweringPass(
         }
     }
 
-    private fun IrSimpleFunction.setEncodeWithCoderBody(mainClass: IrClass, dataGetter: IrFunction): IrBlockBody {
+    private fun IrSimpleFunction.setEncodeWithCoderBody(mainClass: IrClass, dataGetter: IrFunction) {
         val thisReceiver = dispatchReceiverParameter!!
         val coderArgument = valueParameters[0]
 
-        return setBody(pluginContext) {
-            val data = irCall(dataGetter, IrStatementOrigin.GET_PROPERTY)
-            data.dispatchReceiver = irGet(thisReceiver.type, thisReceiver.symbol)
-            val coder = irGet(coderArgument)
+        setBody(pluginContext) {
+            +irBlock {
+                val data = irCall(dataGetter, IrStatementOrigin.GET_PROPERTY)
+                data.dispatchReceiver = irGet(thisReceiver.type, thisReceiver.symbol)
+                val coder = irGet(coderArgument)
 
-            mainClass.properties.mapNotNull(IrProperty::backingField).forEach { field ->
-                try {
-                    addEncodeFieldStatement(
-                        field = field,
-                        data = data,
-                        coder = coder
-                    )
-                } catch (e: Throwable) {
-                    throw IllegalStateException("Error generating encode statement for field: ${field.description}", e)
+                mainClass.parcelableFields.forEach { field ->
+                    try {
+                        addEncodeFieldStatement(
+                            field = field,
+                            data = data,
+                            coder = coder
+                        )
+                    } catch (e: Throwable) {
+                        throw IllegalStateException(
+                            "Error generating encode statement for field: ${field.description} " +
+                                "of class ${mainClass.defaultType.description}",
+                            e,
+                        )
+                    }
                 }
             }
         }
     }
 
-    private fun IrBlockBodyBuilder.addEncodeFieldStatement(field: IrField, data: IrExpression, coder: IrExpression) {
-        object : FieldValueEncoder {
-            override fun encode(functionName: String, valueType: IrType?) {
-                +irCall(
-                    pluginContext.referenceFunction(
-                        name = functionName,
-                        extensionReceiverParameterType = nsCoderType,
-                        valueParameterTypes = listOf((valueType ?: field.type), stringType)
-                    )
-                ).apply {
-                    extensionReceiver = coder
-                    putValueArgument(0, irGetField(data, field))
-                    putValueArgument(1, irString(field.name.identifier))
-                }
-            }
-        }.encodeField(field)
-    }
-
-    private fun FieldValueEncoder.encodeField(field: IrField) {
-        val fieldType = field.type
-
-        when {
-            fieldType == intType -> encode("$packageFoundation.encodeInt32")
-            fieldType == intNType -> encode("$packageRuntime.encodeIntOrNull")
-            fieldType == longType -> encode("$packageFoundation.encodeInt64")
-            fieldType == longNType -> encode("$packageRuntime.encodeLongOrNull")
-            fieldType == floatType -> encode("$packageFoundation.encodeFloat")
-            fieldType == floatNType -> encode("$packageRuntime.encodeFloatOrNull")
-            fieldType == doubleType -> encode("$packageFoundation.encodeDouble")
-            fieldType == doubleNType -> encode("$packageRuntime.encodeDoubleOrNull")
-            fieldType == shortType -> encode("$packageRuntime.encodeShort")
-            fieldType == shortNType -> encode("$packageRuntime.encodeShortOrNull")
-            fieldType == byteType -> encode("$packageRuntime.encodeByte")
-            fieldType == byteNType -> encode("$packageRuntime.encodeByteOrNull")
-            fieldType == charType -> encode("$packageRuntime.encodeChar")
-            fieldType == charNType -> encode("$packageRuntime.encodeCharOrNull")
-            fieldType == booleanType -> encode("$packageFoundation.encodeBool")
-            fieldType == booleanNType -> encode("$packageRuntime.encodeBooleanOrNull")
-            fieldType == stringType -> encode("$packageRuntime.encodeString")
-            fieldType == stringNType -> encode("$packageRuntime.encodeStringOrNull")
-
-            fieldType.isParcelable() ->
-                if (fieldType.isNullable()) {
-                    encode("$packageRuntime.encodeParcelableOrNull", parcelableNType)
-                } else {
-                    encode("$packageRuntime.encodeParcelable", parcelableType)
-                }
-
-            fieldType.classOrNull!! in listOf(listClass, mutableListClass, setClass, mutableSetClass) ->
-                encode("$packageRuntime.encodeCollection", collectionType)
-
-            fieldType.classOrNull!! in listOf(mapClass, mutableMapClass) ->
-                encode("$packageRuntime.encodeMap", mapType)
-
-            else -> unsupportedFieldError(field)
+    private fun IrBlockBuilder.addEncodeFieldStatement(field: IrField, data: IrExpression, coder: IrExpression) {
+        +with(coderFactory.get(field.type)) {
+            encode(
+                coder = coder,
+                value = irGetField(data, field),
+                key = irString(field.name.identifier),
+            )
         }
-    }
-
-    private interface FieldValueEncoder {
-        fun encode(functionName: String, valueType: IrType? = null)
     }
 
     // endregion
@@ -324,109 +273,56 @@ class ParcelizeClassLoweringPass(
         val coderArgument = valueParameters[0]
 
         setBody(pluginContext) {
-            val valueConstructorCall = decodedValueClass.owner.primaryConstructor!!.toIrConstructorCall()
+            +irBlock {
+                val valueConstructorCall = decodedValueClass.owner.primaryConstructor!!.toIrConstructorCall()
 
-            if (mainClass.isObject) {
-                valueConstructorCall.putValueArgument(0, irGetObject(mainClass.symbol))
-            } else {
-                val coder = irGet(coderArgument)
-                val dataConstructorCall = mainClass.primaryConstructor!!.toIrConstructorCall()
+                if (mainClass.isObject) {
+                    valueConstructorCall.putValueArgument(0, irGetObject(mainClass.symbol))
+                } else {
+                    val coder = irGet(coderArgument)
+                    val dataConstructorCall = mainClass.primaryConstructor!!.toIrConstructorCall()
 
-                val valueParameterNames = mainClass.primaryConstructor!!.valueParameters.map { it.name }
-                mainClass.properties
-                    .filter { it.name in valueParameterNames }
-                    .mapNotNull(IrProperty::backingField)
-                    .forEachIndexed { index, field ->
-                        try {
-                            addDecodeFieldStatement(
-                                field = field,
-                                index = index,
-                                dataConstructorCall = dataConstructorCall,
-                                coder = coder
-                            )
-                        } catch (e: Throwable) {
-                            throw IllegalStateException("Error generating decode statement for field: ${field.description}", e)
+                    val valueParameterNames = mainClass.primaryConstructor!!.valueParameters.map { it.name }
+                    mainClass.properties
+                        .filter { it.name in valueParameterNames }
+                        .mapNotNull(IrProperty::backingField)
+                        .forEachIndexed { index, field ->
+                            try {
+                                addDecodeFieldStatement(
+                                    field = field,
+                                    index = index,
+                                    dataConstructorCall = dataConstructorCall,
+                                    coder = coder
+                                )
+                            } catch (e: Throwable) {
+                                throw IllegalStateException("Error generating decode statement for field: ${field.description}", e)
+                            }
                         }
-                    }
 
-                valueConstructorCall.putValueArgument(0, dataConstructorCall)
+                    valueConstructorCall.putValueArgument(0, dataConstructorCall)
+                }
+
+                +irReturn(valueConstructorCall)
             }
-
-            +irReturn(valueConstructorCall)
         }
     }
 
-    private fun IrBlockBodyBuilder.addDecodeFieldStatement(
+    private fun IrBlockBuilder.addDecodeFieldStatement(
         field: IrField,
         index: Int,
         dataConstructorCall: IrConstructorCall,
         coder: IrExpression
     ) {
-        FieldValueDecoder { functionName ->
-            dataConstructorCall.putValueArgument(
-                index,
-                irCall(
-                    pluginContext.referenceFunction(
-                        name = functionName,
-                        extensionReceiverParameterType = nsCoderType,
-                        valueParameterTypes = listOf(stringType)
-                    )
-                ).apply {
-                    extensionReceiver = coder
-                    putValueArgument(0, irString(field.name.identifier))
-                }
-            )
-        }.decodeField(field)
+        dataConstructorCall.putValueArgument(
+            index = index,
+            valueArgument = with(coderFactory.get(field.type)) {
+                decode(
+                    coder = coder,
+                    key = irString(field.name.identifier),
+                )
+            },
+        )
     }
-
-    private fun FieldValueDecoder.decodeField(field: IrField) {
-        val fieldType = field.type
-
-        when {
-            fieldType == intType -> decode("$packageFoundation.decodeInt32ForKey")
-            fieldType == intNType -> decode("$packageRuntime.decodeIntOrNull")
-            fieldType == longType -> decode("$packageFoundation.decodeInt64ForKey")
-            fieldType == longNType -> decode("$packageRuntime.decodeLongOrNull")
-            fieldType == floatType -> decode("$packageFoundation.decodeFloatForKey")
-            fieldType == floatNType -> decode("$packageRuntime.decodeFloatOrNull")
-            fieldType == doubleType -> decode("$packageFoundation.decodeDoubleForKey")
-            fieldType == doubleNType -> decode("$packageRuntime.decodeDoubleOrNull")
-            fieldType == shortType -> decode("$packageRuntime.decodeShort")
-            fieldType == shortNType -> decode("$packageRuntime.decodeShortOrNull")
-            fieldType == byteType -> decode("$packageRuntime.decodeByte")
-            fieldType == byteNType -> decode("$packageRuntime.decodeByteOrNull")
-            fieldType == charType -> decode("$packageRuntime.decodeChar")
-            fieldType == charNType -> decode("$packageRuntime.decodeCharOrNull")
-            fieldType == booleanType -> decode("$packageFoundation.decodeBoolForKey")
-            fieldType == booleanNType -> decode("$packageRuntime.decodeBooleanOrNull")
-            fieldType == stringType -> decode("$packageRuntime.decodeString")
-            fieldType == stringNType -> decode("$packageRuntime.decodeStringOrNull")
-
-            fieldType.isSubtypeOfClass(parcelableClass) ->
-                if (fieldType.isNullable()) {
-                    decode("$packageRuntime.decodeParcelableOrNull")
-                } else {
-                    decode("$packageRuntime.decodeParcelable")
-                }
-
-            fieldType.classOrNull!! in listOf(listClass, mutableListClass) ->
-                decode("$packageRuntime.decodeList")
-
-            fieldType.classOrNull!! in listOf(setClass, mutableSetClass) ->
-                decode("$packageRuntime.decodeSet")
-
-            fieldType.classOrNull!! in listOf(mapClass, mutableMapClass) ->
-                decode("$packageRuntime.decodeMap")
-
-            else -> error("Unsupported field type: ${field.dump()}")
-        }
-    }
-
-    private fun interface FieldValueDecoder {
-        fun decode(functionName: String)
-    }
-
-    // endregion
 
     // endregion
 
@@ -452,7 +348,4 @@ class ParcelizeClassLoweringPass(
             irBuiltIns = irBuiltIns,
             isPrimary = true
         )
-
-    private fun unsupportedFieldError(field: IrField): Nothing =
-        error("Unsupported field: ${field.dump()}")
 }
