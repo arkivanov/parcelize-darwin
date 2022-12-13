@@ -12,14 +12,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private var restoredSomeLogic: SomeLogic? = nil
     lazy var someLogic: SomeLogic = { restoredSomeLogic ?? SomeLogic(savedState: nil) }()
     
-    func application(_ application: UIApplication, shouldSaveApplicationState coder: NSCoder) -> Bool {
-        CoderUtilsKt.encodeParcelable(coder, value: someLogic.saveState(), key: "some_state")
+    func application(_ application: UIApplication, shouldSaveSecureApplicationState coder: NSCoder) -> Bool {
+        CodingKt.encodeParcelable(coder, value: someLogic.saveState(), key: "some_state")
         return true
     }
     
-    func application(_ application: UIApplication, shouldRestoreApplicationState coder: NSCoder) -> Bool {
-        let state: Parcelable? = CoderUtilsKt.decodeParcelable(coder, key: "some_state")
-        restoredSomeLogic = SomeLogic(savedState: state as? SomeLogic.SavedState)
-        return true
+    func application(_ application: UIApplication, shouldRestoreSecureApplicationState coder: NSCoder) -> Bool {
+        do {
+            let state: Parcelable? = try CodingKt.decodeParcelable(coder, key: "some_state")
+            restoredSomeLogic = SomeLogic(savedState: state as? SomeLogic.SavedState)
+            return true
+        } catch {
+            return false
+        }
     }
 }

@@ -12,23 +12,7 @@
 		1F1E81B3262F763E006F1B09 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1F1E81B2262F763E006F1B09 /* Assets.xcassets */; };
 		1F1E81B6262F763E006F1B09 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1F1E81B5262F763E006F1B09 /* Preview Assets.xcassets */; };
 		1F1E81BF262F7669006F1B09 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F1E81BE262F7669006F1B09 /* AppDelegate.swift */; };
-		1F1E81C4262F7757006F1B09 /* ParcelizeSample.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F1E81C3262F7757006F1B09 /* ParcelizeSample.framework */; };
-		1F1E81C5262F7757006F1B09 /* ParcelizeSample.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 1F1E81C3262F7757006F1B09 /* ParcelizeSample.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		1F1E81C6262F7757006F1B09 /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				1F1E81C5262F7757006F1B09 /* ParcelizeSample.framework in Embed Frameworks */,
-			);
-			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		1F1E81AB262F763B006F1B09 /* app-ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "app-ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -38,7 +22,6 @@
 		1F1E81B5262F763E006F1B09 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		1F1E81B7262F763E006F1B09 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1F1E81BE262F7669006F1B09 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		1F1E81C3262F7757006F1B09 /* ParcelizeSample.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ParcelizeSample.framework; path = "../shared/build/xcode-frameworks/ParcelizeSample.framework"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -46,7 +29,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1F1E81C4262F7757006F1B09 /* ParcelizeSample.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -94,7 +76,6 @@
 		1F1E81C2262F7756006F1B09 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				1F1E81C3262F7757006F1B09 /* ParcelizeSample.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -106,11 +87,10 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 1F1E81BA262F763E006F1B09 /* Build configuration list for PBXNativeTarget "app-ios" */;
 			buildPhases = (
+				1F1E81C1262F7711006F1B09 /* ShellScript */,
 				1F1E81A7262F763B006F1B09 /* Sources */,
 				1F1E81A8262F763B006F1B09 /* Frameworks */,
 				1F1E81A9262F763B006F1B09 /* Resources */,
-				1F1E81C1262F7711006F1B09 /* ShellScript */,
-				1F1E81C6262F7757006F1B09 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -181,7 +161,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cd $SRCROOT/..\n./gradlew :shared:packForXCode -PXCODE_CONFIGURATION=${CONFIGURATION}\ncd $SRCROOT\n";
+			shellScript = "cd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode\n\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -323,13 +303,14 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"app-ios/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
-				FRAMEWORK_SEARCH_PATHS = "$SRCROOT/../shared/build/xcode-frameworks";
+				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
 				INFOPLIST_FILE = "app-ios/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.arkivanov.parcelize.app-ios";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
@@ -345,13 +326,14 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"app-ios/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
-				FRAMEWORK_SEARCH_PATHS = "$SRCROOT/../shared/build/xcode-frameworks";
+				FRAMEWORK_SEARCH_PATHS = "$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)";
 				INFOPLIST_FILE = "app-ios/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.arkivanov.parcelize.app-ios";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;

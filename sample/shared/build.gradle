@@ -1,8 +1,10 @@
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
+
 plugins {
     id("kotlin-multiplatform")
     id("com.android.library")
     id("kotlin-parcelize")
-    id("kotlin-parcelize-darwin")
+    id("com.arkivanov.parcelize.darwin")
 }
 
 android {
@@ -16,42 +18,39 @@ android {
 
 kotlin {
     android()
+    iosX64()
+    iosArm64()
+    iosSimulatorArm64()
 
-    ios {
-        binaries {
-            framework {
-                baseName = "ParcelizeSample"
-                export("com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin-runtime:0.1.0")
+    targets.forEach {
+        if (it instanceof KotlinNativeTarget) {
+            it.binaries {
+                framework {
+                    baseName = "ParcelizeSample"
+                    export("com.arkivanov.parcelize.darwin:runtime:0.1.0")
+                }
             }
         }
     }
 
     sourceSets {
         iosMain {
+            dependsOn commonMain
+
             dependencies {
-                api "com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin-runtime:0.1.0"
+                api "com.arkivanov.parcelize.darwin:runtime:0.1.0"
             }
         }
+
+
+        iosX64Main {
+            dependsOn iosMain
+        }
+        iosArm64Main {
+            dependsOn iosMain
+        }
+        iosSimulatorArm64Main {
+            dependsOn iosMain
+        }
     }
-}
-
-
-static String getIosTargetName() {
-    def sdkName = System.getenv("SDK_NAME") ?: "iphonesimulator"
-    return "ios" + (sdkName.startsWith("iphoneos") ? "Arm64" : "X64")
-}
-
-task packForXcode(type: Sync) {
-    group = "build"
-    def mode = System.getenv("CONFIGURATION")
-    if (mode == null) {
-        mode = "DEBUG"
-    }
-    def targetName = getIosTargetName()
-    def framework = kotlin.targets.getByName(targetName).binaries.getFramework(mode)
-    inputs.property("mode", mode)
-    dependsOn(framework.linkTask)
-    def targetDir = new File(buildDir, "xcode-frameworks")
-    from(framework.outputDirectory)
-    into(targetDir)
 }
