@@ -27,6 +27,6 @@ pluginManagement {
     }
 }
 
-include(":kotlin-parcelize-darwin")
-include(":kotlin-parcelize-darwin-compiler")
-include(":kotlin-parcelize-darwin-runtime")
+include(":gradle-plugin")
+include(":compiler-plugin")
+include(":runtime")

@@ -7,12 +7,12 @@ buildscript {
 
     dependencies {
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath "com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin"
+        classpath "com.arkivanov.parcelize.darwin:gradle-plugin"
     }
 }
 
 apply plugin: "kotlin-multiplatform"
-apply plugin: "kotlin-parcelize-darwin"
+apply plugin: "com.arkivanov.parcelize.darwin"
 
 repositories {
     mavenCentral()
@@ -40,7 +40,7 @@ kotlin {
             dependsOn(commonMain)
 
             dependencies {
-                implementation "com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin-runtime"
+                implementation "com.arkivanov.parcelize.darwin:runtime"
             }
         }
 

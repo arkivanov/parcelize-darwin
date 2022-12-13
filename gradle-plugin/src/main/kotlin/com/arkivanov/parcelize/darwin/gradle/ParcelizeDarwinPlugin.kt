@@ -1,6 +1,6 @@
 package com.arkivanov.parcelize.darwin.gradle
 
-import com.arkivanov.parcelize.darwin.kotlin_parcelize_darwin.BuildConfig
+import com.arkivanov.parcelize.darwin.gradle_plugin.BuildConfig
 import org.gradle.api.Project
 import org.gradle.api.provider.Provider
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
@@ -24,7 +24,7 @@ class ParcelizeDarwinPlugin : KotlinCompilerPluginSupportPlugin {
     override fun getPluginArtifact(): SubpluginArtifact =
         SubpluginArtifact(
             groupId = "com.arkivanov.parcelize.darwin",
-            artifactId = "kotlin-parcelize-darwin-compiler",
+            artifactId = "compiler-plugin",
             version = pluginVersion,
         )
 
@@ -38,7 +38,7 @@ class ParcelizeDarwinPlugin : KotlinCompilerPluginSupportPlugin {
             if ((trg is KotlinNativeTarget) && trg.konanTarget.family.isAppleFamily) {
                 trg.compilations.configureEach { compilation ->
                     compilation.dependencies {
-                        implementation("com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin-runtime:$pluginVersion")
+                        implementation("com.arkivanov.parcelize.darwin:runtime:$pluginVersion")
                     }
                 }
             }
