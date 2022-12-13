@@ -22,8 +22,10 @@ import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.classOrNull
 import org.jetbrains.kotlin.ir.types.getClass
+import org.jetbrains.kotlin.ir.types.isString
 import org.jetbrains.kotlin.ir.types.makeNullable
 import org.jetbrains.kotlin.ir.util.companionObject
+import org.jetbrains.kotlin.ir.util.functions
 import org.jetbrains.kotlin.ir.util.getPropertyGetter
 import org.jetbrains.kotlin.ir.util.getSimpleFunction
 
@@ -121,6 +123,13 @@ class CoderFactory(
                 )
 
             is SupportedType.String -> StringCoder(symbols = symbols)
+
+            is SupportedType.Enum ->
+                EnumCoder(
+                    symbols = symbols,
+                    type = type.type,
+                    stringCoder = get(type = SupportedType.String),
+                )
 
             is SupportedType.Parcelable -> ParcelableCoder(symbols = symbols)
 
@@ -258,6 +267,65 @@ private class StringCoder(
                 key,
             ),
         )
+}
+
+private class EnumCoder(
+    private val symbols: Symbols,
+    private val type: IrType,
+    private val stringCoder: Coder,
+) : Coder {
+    private val enumValueOf =
+        type.getClass()!!.functions.first { function ->
+            (function.name.asString() == "valueOf") &&
+                (function.dispatchReceiverParameter == null) &&
+                (function.extensionReceiverParameter == null) &&
+                (function.valueParameters.size == 1) &&
+                function.valueParameters.single().type.isString()
+        }.symbol
+
+    override fun IrBlockBuilder.encode(coder: IrExpression, value: IrExpression, key: IrExpression): IrExpression =
+        irBlock {
+            val name =
+                createTmpVariable(
+                    irIfNull(
+                        type = symbols.stringType,
+                        subject = value,
+                        thenPart = irNull(),
+                        elsePart = irCall(
+                            callee = type.getClass()!!.getPropertyGetter("name")!!,
+                            dispatchReceiver = value,
+                        ),
+                    )
+                )
+
+            with(stringCoder) {
+                +encode(
+                    coder = coder,
+                    value = irGet(name),
+                    key = key,
+                )
+            }
+        }
+
+    override fun IrBlockBuilder.decode(coder: IrExpression, key: IrExpression): IrExpression =
+        irBlock {
+            val name =
+                createTmpVariable(
+                    with(stringCoder) {
+                        decode(coder = coder, key = key)
+                    }
+                )
+
+            +irIfNull(
+                type = type,
+                subject = irGet(name),
+                thenPart = irNull(),
+                elsePart = irCall(
+                    callee = enumValueOf,
+                    arguments = listOf(irGet(name)),
+                ),
+            )
+        }
 }
 
 private class ParcelableCoder(

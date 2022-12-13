@@ -4,6 +4,7 @@ import org.jetbrains.kotlin.backend.jvm.ir.erasedUpperBound
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.typeOrNull
 import org.jetbrains.kotlin.ir.util.defaultType
+import org.jetbrains.kotlin.ir.util.isEnumClass
 import org.jetbrains.kotlin.ir.util.render
 
 sealed interface SupportedType {
@@ -17,6 +18,7 @@ sealed interface SupportedType {
     data class PrimitiveDouble(val isNullable: Boolean) : SupportedType
     data class PrimitiveBoolean(val isNullable: Boolean) : SupportedType
     object String : SupportedType
+    data class Enum(val type: IrType) : SupportedType
     object Parcelable : SupportedType
     data class List(val itemType: SupportedType) : SupportedType
     data class MutableList(val itemType: SupportedType) : SupportedType
@@ -45,6 +47,7 @@ fun IrType.toSupportedType(symbols: Symbols): SupportedType =
         this == symbols.booleanType -> SupportedType.PrimitiveBoolean(isNullable = false)
         this == symbols.booleanNType -> SupportedType.PrimitiveBoolean(isNullable = true)
         (this == symbols.stringType) || (this == symbols.stringNType) -> SupportedType.String
+        erasedUpperBound.isEnumClass -> SupportedType.Enum(type = this)
         isParcelable() -> SupportedType.Parcelable
 
         erasedUpperBoundType == symbols.listType ->

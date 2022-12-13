@@ -50,6 +50,7 @@ import org.jetbrains.kotlin.ir.util.getSimpleFunction
 import org.jetbrains.kotlin.ir.util.isObject
 import org.jetbrains.kotlin.ir.util.primaryConstructor
 import org.jetbrains.kotlin.ir.util.properties
+import org.jetbrains.kotlin.ir.util.render
 import org.jetbrains.kotlin.name.Name
 
 class ParcelizeClassLoweringPass(
@@ -227,11 +228,7 @@ class ParcelizeClassLoweringPass(
                             coder = coder
                         )
                     } catch (e: Throwable) {
-                        throw IllegalStateException(
-                            "Error generating encode statement for field: ${field.description} " +
-                                "of class ${mainClass.defaultType.description}",
-                            e,
-                        )
+                        throw IllegalStateException("Error generating encode statement for ${field.render()} of ${mainClass.render()}", e)
                     }
                 }
             }
@@ -295,7 +292,7 @@ class ParcelizeClassLoweringPass(
                                     coder = coder
                                 )
                             } catch (e: Throwable) {
-                                throw IllegalStateException("Error generating decode statement for field: ${field.description}", e)
+                                throw IllegalStateException("Error generating decode statement for ${field.render()}", e)
                             }
                         }
 

@@ -57,6 +57,9 @@ class ParcelizeTest {
                 obj1 = Obj,
                 obj2 = Obj,
                 obj3 = null,
+                enum1 = SomeEnum.A,
+                enum2 = SomeEnum.B,
+                enum3 = null,
 
                 intList1 = listOf(1, 2),
                 intList2 = listOf(3, 4),
@@ -479,15 +482,20 @@ class ParcelizeTest {
                 parcelableMutableMap6 = null,
             )
 
+        val some2 = some.encodeAndDecode()
+
+        assertEquals(some, some2)
+    }
+
+    private fun Parcelable.encodeAndDecode(): Parcelable {
         val arch = NSKeyedArchiver(requiringSecureCoding = true)
-        arch.encodeParcelable(value = some, key = "some")
+        arch.encodeParcelable(value = this, key = "key")
         val data = arch.encodedData
 
         val unarch = NSKeyedUnarchiver(forReadingWithData = data)
         unarch.requiresSecureCoding = true
-        val some2 = unarch.decodeParcelable<Some>("some")
 
-        assertEquals(some, some2)
+        return unarch.decodeParcelable("key")
     }
 
     @Parcelize
@@ -497,6 +505,10 @@ class ParcelizeTest {
 
     @Parcelize
     private object Obj : Parcelable
+
+    private enum class SomeEnum {
+        A, B
+    }
 
     @Parcelize
     private data class Some(
@@ -536,6 +548,9 @@ class ParcelizeTest {
         val obj1: Obj,
         val obj2: Obj?,
         val obj3: Obj?,
+        val enum1: SomeEnum,
+        val enum2: SomeEnum?,
+        val enum3: SomeEnum?,
 
         val intList1: List<Int>,
         val intList2: List<Int>?,

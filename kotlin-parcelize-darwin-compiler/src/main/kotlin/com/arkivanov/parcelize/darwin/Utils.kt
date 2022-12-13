@@ -200,9 +200,3 @@ fun IrType.asIrSimpleType(): IrSimpleType =
     this as IrSimpleType
 
 fun <T : Any> T?.require(): T = requireNotNull(this)
-
-val IrField.description: String
-    get() = "[$name: ${type.description}]"
-
-val IrType.description: String
-    get() = "$classFqName${if (isNullable()) "?" else ""}"
