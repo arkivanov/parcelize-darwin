@@ -2,17 +2,13 @@ package com.arkivanov.parcelize.darwin
 
 import platform.Foundation.NSCoder
 import platform.Foundation.NSLock
-import platform.Foundation.NSSecureCodingProtocol
 import platform.Foundation.decodeObjectOfClass
 import platform.Foundation.encodeObject
 
 fun NSCoder.encodeParcelableOrNull(value: Parcelable?, key: String) {
-    val coding = value?.requireCoding()
+    val coding = value?.coding()
     encodeObject(coding, key)
 }
-
-private fun Parcelable.requireCoding(): NSSecureCodingProtocol =
-    requireNotNull(coding()) { "Coding returned by ${this::class} is null" }
 
 @Throws(IllegalStateException::class)
 @Suppress("UNCHECKED_CAST")
