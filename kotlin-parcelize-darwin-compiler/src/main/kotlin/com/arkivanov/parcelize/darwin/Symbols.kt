@@ -56,6 +56,7 @@ interface Symbols {
     val arrayListConstructor: IrConstructorSymbol
     val hashSetConstructor: IrConstructorSymbol
     val hashMapConstructor: IrConstructorSymbol
+    val illegalStateExceptionConstructor: IrConstructorSymbol
     val shortToInt: IrSimpleFunctionSymbol
     val intToShort: IrSimpleFunctionSymbol
     val byteToInt: IrSimpleFunctionSymbol
@@ -145,6 +146,13 @@ class DefaultSymbols(
             .owner
             .constructors
             .first { it.valueParameters.isEmpty() }
+            .symbol
+
+    override val illegalStateExceptionConstructor: IrConstructorSymbol =
+        pluginContext.referenceClass(FqName("kotlin.IllegalStateException"))!!
+            .owner
+            .constructors
+            .first { it.valueParameters.size == 1 }
             .symbol
 
     override val shortToInt: IrSimpleFunctionSymbol = shortType.classOrNull!!.getSimpleFunction("toInt")!!

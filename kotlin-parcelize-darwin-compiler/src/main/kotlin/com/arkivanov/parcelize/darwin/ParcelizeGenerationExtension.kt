@@ -11,9 +11,12 @@ class ParcelizeGenerationExtension(
 ) : IrGenerationExtension {
 
     override fun generate(moduleFragment: IrModuleFragment, pluginContext: IrPluginContext) {
+        val symbols = DefaultSymbols(pluginContext)
+
         ParcelizeClassLoweringPass(
             context = ContextImpl(pluginContext),
-            coderFactory = CoderFactory(DefaultSymbols(pluginContext)),
+            symbols = symbols,
+            coderFactory = CoderFactory(symbols),
             logs = logs,
         ).lower(moduleFragment)
     }

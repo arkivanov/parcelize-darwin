@@ -1,6 +1,8 @@
 package com.arkivanov.parcelize.darwin
 
 import org.jetbrains.kotlin.backend.common.ClassLoweringPass
+import org.jetbrains.kotlin.backend.common.lower.irIfThen
+import org.jetbrains.kotlin.backend.common.lower.irThrow
 import org.jetbrains.kotlin.backend.wasm.ir2wasm.getSuperClass
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.descriptors.ClassKind
@@ -8,6 +10,7 @@ import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
 import org.jetbrains.kotlin.ir.builders.IrBlockBuilder
+import org.jetbrains.kotlin.ir.builders.createTmpVariable
 import org.jetbrains.kotlin.ir.builders.declarations.addFunction
 import org.jetbrains.kotlin.ir.builders.declarations.addGetter
 import org.jetbrains.kotlin.ir.builders.declarations.addProperty
@@ -19,6 +22,8 @@ import org.jetbrains.kotlin.ir.builders.irCall
 import org.jetbrains.kotlin.ir.builders.irGet
 import org.jetbrains.kotlin.ir.builders.irGetField
 import org.jetbrains.kotlin.ir.builders.irGetObject
+import org.jetbrains.kotlin.ir.builders.irInt
+import org.jetbrains.kotlin.ir.builders.irNotEquals
 import org.jetbrains.kotlin.ir.builders.irReturn
 import org.jetbrains.kotlin.ir.builders.irReturnTrue
 import org.jetbrains.kotlin.ir.builders.irString
@@ -55,6 +60,7 @@ import org.jetbrains.kotlin.name.Name
 
 class ParcelizeClassLoweringPass(
     context: Context,
+    private val symbols: Symbols,
     private val coderFactory: CoderFactory,
     private val logs: MessageCollector
 ) : ClassLoweringPass, Context by context {
@@ -77,13 +83,33 @@ class ParcelizeClassLoweringPass(
         val dataProperty = codingClass.addDataProperty(dataField)
         val dataGetter = dataProperty.addDataGetter(irClass, codingClass, dataField)
 
-        codingClass.addEncodeWithCoderFunction(irClass, dataGetter)
-        codingClass.addInitWithCoderFunction(irClass)
+        val mainClassHash = irClass.calculateHash()
+
+        codingClass.addEncodeWithCoderFunction(
+            mainClass = irClass,
+            dataGetter = dataGetter,
+            mainClassHash = mainClassHash,
+        )
+
+        codingClass.addInitWithCoderFunction(
+            mainClass = irClass,
+            mainClassHash = mainClassHash,
+        )
 
         val codingCompanionClass = codingClass.addCodingCompanionObject()
         codingCompanionClass.addSupportsSecureCodingFunction()
 
         irClass.generateCodingBody(codingClass)
+    }
+
+    private fun IrClass.calculateHash(): Int {
+        var hash = if (isObject) 1 else 0
+
+        parcelableFields.forEach { field ->
+            hash = hash * 31 + field.render().hashCode()
+        }
+
+        return hash
     }
 
     // region CodingImpl
@@ -193,7 +219,7 @@ class ParcelizeClassLoweringPass(
 
     // region Encode
 
-    private fun IrClass.addEncodeWithCoderFunction(mainClass: IrClass, dataGetter: IrFunction) {
+    private fun IrClass.addEncodeWithCoderFunction(mainClass: IrClass, dataGetter: IrFunction, mainClassHash: Int) {
         addFunction {
             name = Name.identifier("encodeWithCoder")
             returnType = unitType
@@ -206,32 +232,54 @@ class ParcelizeClassLoweringPass(
                 type = nsCoderType
             }
 
-            setEncodeWithCoderBody(mainClass, dataGetter)
+            setEncodeWithCoderBody(
+                mainClass = mainClass,
+                dataGetter = dataGetter,
+                mainClassHash = mainClassHash,
+            )
         }
     }
 
-    private fun IrSimpleFunction.setEncodeWithCoderBody(mainClass: IrClass, dataGetter: IrFunction) {
+    private fun IrSimpleFunction.setEncodeWithCoderBody(mainClass: IrClass, dataGetter: IrFunction, mainClassHash: Int) {
         val thisReceiver = dispatchReceiverParameter!!
         val coderArgument = valueParameters[0]
 
         setBody(pluginContext) {
             +irBlock {
-                val data = irCall(dataGetter, IrStatementOrigin.GET_PROPERTY)
-                data.dispatchReceiver = irGet(thisReceiver.type, thisReceiver.symbol)
                 val coder = irGet(coderArgument)
 
-                mainClass.parcelableFields.forEach { field ->
-                    try {
-                        addEncodeFieldStatement(
-                            field = field,
-                            data = data,
-                            coder = coder
-                        )
-                    } catch (e: Throwable) {
-                        throw IllegalStateException("Error generating encode statement for ${field.render()} of ${mainClass.render()}", e)
+                addEncodeHashStatement(mainClassHash = mainClassHash, coder = coder)
+
+                if (!mainClass.isObject) {
+                    val data = irCall(dataGetter, IrStatementOrigin.GET_PROPERTY)
+                    data.dispatchReceiver = irGet(thisReceiver.type, thisReceiver.symbol)
+
+                    mainClass.parcelableFields.forEach { field ->
+                        try {
+                            addEncodeFieldStatement(
+                                field = field,
+                                data = data,
+                                coder = coder
+                            )
+                        } catch (e: Throwable) {
+                            throw IllegalStateException(
+                                "Error generating encode statement for ${field.render()} of ${mainClass.render()}",
+                                e
+                            )
+                        }
                     }
                 }
             }
+        }
+    }
+
+    private fun IrBlockBuilder.addEncodeHashStatement(mainClassHash: Int, coder: IrExpression) {
+        with(coderFactory.get(type = SupportedType.PrimitiveInt(isNullable = false))) {
+            +encode(
+                value = irInt(mainClassHash),
+                coder = coder,
+                key = irString("__parcelize_hash"),
+            )
         }
     }
 
@@ -249,7 +297,7 @@ class ParcelizeClassLoweringPass(
 
     // region Decode
 
-    private fun IrClass.addInitWithCoderFunction(mainClass: IrClass) {
+    private fun IrClass.addInitWithCoderFunction(mainClass: IrClass, mainClassHash: Int) {
         addFunction {
             name = Name.identifier("initWithCoder")
             returnType = pluginContext.referenceClass(nsCodingName)!!.defaultType.makeNullable() // FIXME: x
@@ -262,15 +310,34 @@ class ParcelizeClassLoweringPass(
                 type = nsCoderType
             }
 
-            setInitWithCoderBody(mainClass)
+            setInitWithCoderBody(mainClass, mainClassHash)
         }
     }
 
-    private fun IrSimpleFunction.setInitWithCoderBody(mainClass: IrClass) {
+    private fun IrSimpleFunction.setInitWithCoderBody(mainClass: IrClass, mainClassHash: Int) {
         val coderArgument = valueParameters[0]
 
         setBody(pluginContext) {
             +irBlock {
+                val decodedHash =
+                    createTmpVariable(
+                        with(coderFactory.get(type = SupportedType.PrimitiveInt(isNullable = false))) {
+                            decode(
+                                coder = irGet(coderArgument),
+                                key = irString("__parcelize_hash"),
+                            )
+                        }
+                    )
+
+                +irIfThen(
+                    condition = irNotEquals(irGet(decodedHash), irInt(mainClassHash)),
+                    thenPart = irThrow(
+                        irCall(callee = symbols.illegalStateExceptionConstructor).apply {
+                            putValueArgument(0, irString("Signature mismatch for ${mainClass.render()}"))
+                        }
+                    ),
+                )
+
                 val valueConstructorCall = decodedValueClass.owner.primaryConstructor!!.toIrConstructorCall()
 
                 if (mainClass.isObject) {
