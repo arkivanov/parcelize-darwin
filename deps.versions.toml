@@ -1,0 +1,17 @@
+[versions]
+
+plugin = "0.1.0"
+kotlin = "1.7.21"
+buildConfigGradlePlugin = "3.1.0"
+googleAutoService = "1.0.1"
+
+[libraries]
+
+kotlin-kotlinGradlePlug = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
+kotlin-kotlinGradlePluginApi = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin-api", version.ref = "kotlin" }
+kotlin-kotlinCompilerEmbeddable = { group = "org.jetbrains.kotlin", name = "kotlin-compiler-embeddable", version.ref = "kotlin" }
+
+gmazzo-buildConfigPlug = { group = "com.github.gmazzo", name = "gradle-buildconfig-plugin", version.ref = "buildConfigGradlePlugin" }
+
+google-autoService = { group = "com.google.auto.service", name = "auto-service", version.ref = "googleAutoService" }
+google-autoServiceAnnotations = { group = "com.google.auto.service", name = "auto-service-annotations", version.ref = "googleAutoService" }

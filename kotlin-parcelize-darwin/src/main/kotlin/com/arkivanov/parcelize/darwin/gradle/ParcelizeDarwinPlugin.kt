@@ -3,14 +3,13 @@ package com.arkivanov.parcelize.darwin.gradle
 import com.arkivanov.parcelize.darwin.kotlin_parcelize_darwin.BuildConfig
 import org.gradle.api.Project
 import org.gradle.api.provider.Provider
+import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
+import org.jetbrains.kotlin.gradle.dsl.kotlinExtension
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilerPluginSupportPlugin
 import org.jetbrains.kotlin.gradle.plugin.SubpluginArtifact
 import org.jetbrains.kotlin.gradle.plugin.SubpluginOption
-import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
-import org.jetbrains.kotlin.gradle.dsl.kotlinExtension
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
-import org.jetbrains.kotlin.konan.target.Family
 
 class ParcelizeDarwinPlugin : KotlinCompilerPluginSupportPlugin {
 
@@ -31,7 +30,7 @@ class ParcelizeDarwinPlugin : KotlinCompilerPluginSupportPlugin {
 
     override fun isApplicable(kotlinCompilation: KotlinCompilation<*>): Boolean =
         (kotlinCompilation.target as? KotlinNativeTarget)
-                ?.konanTarget?.family?.isAppleFamily == true
+            ?.konanTarget?.family?.isAppleFamily == true
 
     override fun apply(target: Project) {
         val ext = target.kotlinExtension as KotlinMultiplatformExtension
