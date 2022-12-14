@@ -20,6 +20,10 @@ Apply the plugin in your `build.gradle` file.
 // Root build.gradle
 
 buildscript {
+    repositories {
+        mavenCentral()
+    }
+
     dependencies {
         classpath("com.arkivanov.parcelize.darwin:gradle-plugin:<version>)
     }
