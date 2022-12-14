@@ -1,70 +1,67 @@
-# kotlin-parcelize-darwin
+# parcelize-darwin
 
-Kotlin/Native compiler plugin generating `Parcelable` implementations for Darwin/Apple.
-Allows writing `Parcelable` classes for iOS (eventually for all Darwin targets, possibly),
-similary to the Android's `kotlin-parcelize` plugin. Can be used together with `kotlin-parcelize`
-plugin to write `Parcelable` classes in the `commonMain` source set.
+Experimental Kotlin/Native compiler plugin that generates `Parcelable` implementations for Darwin (Apple) targets. Allows writing `Parcelable` classes for all Darwin targets, similary to the Android's `kotlin-parcelize` plugin. Can be also used together with the `kotlin-parcelize` plugin to write `Parcelable` classes in the `commonMain` source set.
 
-It is working, but still work in progress.
-
-Supported targets: `iosX64`, `iosArm64`.
+Supported targets: `ios`, `watchos`, `tvos` and `macos`
 
 Supported types:
-- All Kotlin primitive types
-- The `String` type
+
+- Kotlin primitive types and their nullable counterparts
+- `String` type
+- `Enum` classes
 - `Parcelable` classes
 - Collections: `List`, `MutableList`, `Set`, `MutableSet`, `Map`, `MutableMap` of all supported types
 
 ## Setup
 
-The plugin is not published yet, but can be used when published locally.
+Apply the plugin in your `build.gradle` file.
 
-1. Checkout the repository
-2. Run `./gradlew publishToMavenLocal`
-
-3. In the root `build.gradle`:
 ```groovy
+// Root build.gradle
+
 buildscript {
-    repositories {
-        mavenLocal()
-    }
     dependencies {
-        classpath "com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin:0.1.0"
+        classpath("com.arkivanov.parcelize.darwin:gradle-plugin:<version>)
     }
+}
+
+// Module's build.gradle
+
+plugins {
+    id("com.arkivanov.parcelize.darwin")
 }
 ```
 
-4. In the project's `build.gradle`:
-```kotlin
-apply plugin: "kotlin-parcelize-darwin"
+The plugin automatically adds the `runtime` dependency to all Darwin source sets. However, if you need to use `Parcelable` interface or `@Parcelize` annotation in a shared source set (e.g. `iosMain`), you will need to add the `runtime` dependency manually.
 
-repositories {
-    mavenLocal()
-}
-
+```groovy
 kotlin {
-    ios()
-
     sourceSets {
         iosMain {
             dependencies {
-                implementation "com.arkivanov.parcelize.darwin:kotlin-parcelize-darwin-runtime:0.1.0"
+                implementation "com.arkivanov.parcelize.darwin:runtime:<version>"
             }
         }
     }
 }
 ```
 
+The `runtime` dependency often needs to be [exported](https://kotlinlang.org/docs/multiplatform-build-native-binaries.html#export-dependencies-to-binaries) to the Apple framework. This allows encoding and decoding `Parcelable` classes in Swift.
+
 ## Using
 
 The plugin works similary to the Android's `kotlin-parcelize` plugin.
 
-The `kotlin-parcelize-darwin-runtime` module provides the following things:
-- [Parcelable](https://github.com/arkivanov/kotlin-parcelize-darwin/blob/master/kotlin-parcelize-darwin-runtime/src/iosMain/kotlin/com/arkivanov/parcelize/darwin/runtime/Parcelable.kt) interface
-- [@Parcelize](https://github.com/arkivanov/kotlin-parcelize-darwin/blob/master/kotlin-parcelize-darwin-runtime/src/iosMain/kotlin/com/arkivanov/parcelize/darwin/runtime/Parcelize.kt) annotation
-- Some handy [CoderUtils](https://github.com/arkivanov/kotlin-parcelize-darwin/blob/master/kotlin-parcelize-darwin-runtime/src/iosMain/kotlin/com/arkivanov/parcelize/darwin/runtime/CoderUtils.kt)
+The `runtime` module provides the following:
+
+- [Parcelable](https://github.com/arkivanov/parcelize-darwin/blob/master/runtime/src/darwinMain/kotlin/com/arkivanov/parcelize/darwin/Parcelable.kt) interface
+- [@Parcelize](https://github.com/arkivanov/parcelize-darwin/blob/master/runtime/src/darwinMain/kotlin/com/arkivanov/parcelize/darwin/Parcelize.kt) annotation
+- Some handy utils (can be used from Swift) - [Coding.kt](https://github.com/arkivanov/parcelize-darwin/blob/master/runtime/src/darwinMain/kotlin/com/arkivanov/parcelize/darwin/Coding.kt)
+
+## Examples
 
 Here is an example of some `Parcelable` classes:
+
 ```kotlin
 @Parcelize
 data class User(
@@ -78,25 +75,9 @@ data class UserGroup(
 ) : Parcelable
 ```
 
-Encoding a `Parcelable` class using `NSCoder`:
-```kotlin
-import com.arkivanov.parcelize.darwin.runtime.encodeParcelable
+A complete example can be found here - [sample](https://github.com/arkivanov/parcelize-darwin/tree/master/sample).
 
-fun encode(coder: NSCoder, user: User) {
-    coder.encodeParcelable(value = user, key = "user")
-}
-```
-
-Decoding a `Parcelable` class using `NSCoder`:
-```kotlin
-import com.arkivanov.parcelize.darwin.runtime.decodeParcelable
-
-fun decode(coder: NSCoder) {
-    val user: User? = coder.decodeParcelable(key = "user") as User?
-}
-```
-
-### Writing Parcelables in commonMain
+### Writing Parcelable classes in commonMain
 
 The plugin can be used to write `Parcelable` classes in the `commonMain` source set:
 
@@ -121,8 +102,8 @@ actual typealias Parcelize = kotlinx.parcelize.Parcelize
 3. Define the following actuals in the `iosMain` source set:
 
 ```kotlin
-actual typealias Parcelable = com.arkivanov.parcelize.darwin.runtime.Parcelable
-actual typealias Parcelize = com.arkivanov.parcelize.darwin.runtime.Parcelize
+actual typealias Parcelable = com.arkivanov.parcelize.darwin.Parcelable
+actual typealias Parcelize = com.arkivanov.parcelize.darwin.Parcelize
 ```
 
 4. Define the following actual for all other targets that do not support `Parcelize`:
@@ -142,9 +123,9 @@ The code will be automatically generated for Android and iOS, without affecting 
 There is no proper IDE support at the moment. So `Parcelable` classes in the `iosMain` source set
 are highlighted as incomplete, but the code still compiles just fine. There are no IDE errors in the `commonMain` source set.
 
-### Tests as using examples
+### Tests as usage examples
 
-Some tests can be found [here](https://github.com/arkivanov/kotlin-parcelize-darwin/blob/master/tests/src/iosTest/kotlin/com/arkivanov/parcelize/darwin/tests/ParcelizeTest.kt).
+Some tests can be found [here](https://github.com/arkivanov/parcelize-darwin/blob/master/tests/src/darwinTest/kotlin/com/arkivanov/parcelize/darwin/tests/ParcelizeTest.kt).
 
 ## Author
 
