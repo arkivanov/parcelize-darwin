@@ -17,7 +17,8 @@ interface Symbols {
     val nsStringClass: IrClassSymbol
     val nsLockClass: IrClassSymbol
     val objCClassType: IrType
-    val decodedValueType: IrType
+    val nsArrayType: IrType
+    val nsMutableArrayType: IrType
 
     val parcelableType: IrType
     val parcelableNType: IrType
@@ -52,10 +53,12 @@ interface Symbols {
     val booleanNType: IrType
     val stringType: IrType
     val stringNType: IrType
+    val uLongType: IrType
 
     val arrayListConstructor: IrConstructorSymbol
     val hashSetConstructor: IrConstructorSymbol
     val hashMapConstructor: IrConstructorSymbol
+    val nsMutableArrayConstructor: IrConstructorSymbol
     val illegalStateExceptionConstructor: IrConstructorSymbol
     val shortToInt: IrSimpleFunctionSymbol
     val intToShort: IrSimpleFunctionSymbol
@@ -91,7 +94,8 @@ class DefaultSymbols(
     override val nsStringClass: IrClassSymbol = pluginContext.referenceClass(nsStringName).require()
     override val nsLockClass: IrClassSymbol = pluginContext.referenceClass(nsLockName).require()
     override val objCClassType: IrType = pluginContext.referenceClass(objCClassName)!!.defaultType
-    override val decodedValueType: IrType = pluginContext.referenceClass(decodedValueName)!!.defaultType
+    override val nsArrayType: IrType = pluginContext.referenceClass(nsArrayName)!!.defaultType
+    override val nsMutableArrayType: IrType = pluginContext.referenceClass(nsMutableArrayName)!!.defaultType
 
     override val parcelableType: IrType = parcelableClass.defaultType
     override val parcelableNType: IrType = parcelableType.makeNullable()
@@ -126,6 +130,7 @@ class DefaultSymbols(
     override val booleanNType: IrType = booleanType.makeNullable()
     override val stringType: IrType = pluginContext.irBuiltIns.stringType
     override val stringNType: IrType = stringType.makeNullable()
+    override val uLongType: IrType = pluginContext.referenceClass(FqName("kotlin.ULong"))!!.defaultType
 
     override val arrayListConstructor: IrConstructorSymbol =
         pluginContext.referenceClass(FqName("kotlin.collections.ArrayList"))!!
@@ -143,6 +148,13 @@ class DefaultSymbols(
 
     override val hashMapConstructor: IrConstructorSymbol =
         pluginContext.referenceClass(FqName("kotlin.collections.HashMap"))!!
+            .owner
+            .constructors
+            .first { it.valueParameters.isEmpty() }
+            .symbol
+
+    override val nsMutableArrayConstructor: IrConstructorSymbol =
+        pluginContext.referenceClass(FqName("$packageFoundation.NSMutableArray"))!!
             .owner
             .constructors
             .first { it.valueParameters.isEmpty() }

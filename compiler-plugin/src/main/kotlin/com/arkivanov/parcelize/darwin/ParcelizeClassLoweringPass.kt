@@ -338,10 +338,17 @@ class ParcelizeClassLoweringPass(
                     ),
                 )
 
-                val valueConstructorCall = decodedValueClass.owner.primaryConstructor!!.toIrConstructorCall()
+                val nsMutableArray = createTmpVariable(irCall(symbols.nsMutableArrayConstructor))
 
                 if (mainClass.isObject) {
-                    valueConstructorCall.putValueArgument(0, irGetObject(mainClass.symbol))
+                    +irCall(
+                        callee = symbols.nsMutableArrayType.requireClass().requireFunction(
+                            name = "addObject",
+                            valueParameterTypes = listOf(symbols.anyNType),
+                        ),
+                        dispatchReceiver = irGet(nsMutableArray),
+                        arguments = listOf(irGetObject(mainClass.symbol)),
+                    )
                 } else {
                     val coder = irGet(coderArgument)
                     val dataConstructorCall = mainClass.primaryConstructor!!.toIrConstructorCall()
@@ -363,10 +370,17 @@ class ParcelizeClassLoweringPass(
                             }
                         }
 
-                    valueConstructorCall.putValueArgument(0, dataConstructorCall)
+                    +irCall(
+                        callee = symbols.nsMutableArrayType.requireClass().requireFunction(
+                            name = "addObject",
+                            valueParameterTypes = listOf(symbols.anyNType),
+                        ),
+                        dispatchReceiver = irGet(nsMutableArray),
+                        arguments = listOf(dataConstructorCall),
+                    )
                 }
 
-                +irReturn(valueConstructorCall)
+                +irReturn(irGet(nsMutableArray))
             }
         }
     }

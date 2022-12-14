@@ -12,6 +12,5 @@ class ContextImpl(
     override val nsCodingClass: IrClassSymbol = pluginContext.referenceClass(nsCodingName).require()
     override val nsCodingMetaClass: IrClassSymbol = pluginContext.referenceClass(nsCodingMetaName).require()
     override val nsCoderClass: IrClassSymbol = pluginContext.referenceClass(nsCoderName).require()
-    override val decodedValueClass: IrClassSymbol = pluginContext.referenceClass(decodedValueName).require()
     override val parcelableClass: IrClassSymbol = pluginContext.referenceClass(parcelableName).require()
 }

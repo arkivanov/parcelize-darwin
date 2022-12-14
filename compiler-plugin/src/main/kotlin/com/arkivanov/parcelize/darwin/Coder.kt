@@ -12,6 +12,7 @@ import org.jetbrains.kotlin.ir.builders.irIfNull
 import org.jetbrains.kotlin.ir.builders.irIfThen
 import org.jetbrains.kotlin.ir.builders.irIfThenElse
 import org.jetbrains.kotlin.ir.builders.irInt
+import org.jetbrains.kotlin.ir.builders.irLong
 import org.jetbrains.kotlin.ir.builders.irNotEquals
 import org.jetbrains.kotlin.ir.builders.irNull
 import org.jetbrains.kotlin.ir.builders.irString
@@ -353,7 +354,7 @@ private class ParcelableCoder(
 
     override fun IrBlockBuilder.decode(coder: IrExpression, key: IrExpression): IrExpression =
         irBlock {
-            val decodedValue =
+            val nsMutableArray =
                 createTmpVariable(
                     irCall(
                         callee = symbols.decodeObject,
@@ -367,11 +368,12 @@ private class ParcelableCoder(
 
             +irIfNull(
                 type = symbols.parcelableNType,
-                subject = irGet(decodedValue),
+                subject = irGet(nsMutableArray),
                 thenPart = irNull(),
                 elsePart = irCall(
-                    callee = symbols.decodedValueType.classOrNull!!.getPropertyGetter("value")!!,
-                    dispatchReceiver = irGet(decodedValue),
+                    callee = symbols.nsArrayType.requireClass().requireFunction(name = "objectAtIndex"),
+                    dispatchReceiver = irGet(nsMutableArray),
+                    arguments = listOf(irLong(value = 0, type = symbols.uLongType)),
                 ),
             )
         }

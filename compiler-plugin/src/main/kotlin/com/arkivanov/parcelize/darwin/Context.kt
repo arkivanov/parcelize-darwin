@@ -8,6 +8,7 @@ import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.defaultType
 import org.jetbrains.kotlin.ir.types.makeNullable
 
+// TODO: Remove
 interface Context {
 
     val pluginContext: IrPluginContext
@@ -16,7 +17,6 @@ interface Context {
     val nsCodingClass: IrClassSymbol
     val nsCodingMetaClass: IrClassSymbol
     val nsCoderClass: IrClassSymbol
-    val decodedValueClass: IrClassSymbol
     val parcelableClass: IrClassSymbol
 }
 

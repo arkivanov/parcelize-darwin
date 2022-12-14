@@ -4,5 +4,5 @@ import platform.Foundation.NSSecureCodingProtocol
 
 interface Parcelable {
 
-    fun coding(): NSSecureCodingProtocol? = NotImplementedCoding()
+    fun coding(): NSSecureCodingProtocol = NotImplementedCoding()
 }

@@ -35,7 +35,7 @@ import org.jetbrains.kotlin.ir.types.IrTypeProjection
 import org.jetbrains.kotlin.ir.types.classFqName
 import org.jetbrains.kotlin.ir.types.defaultType
 import org.jetbrains.kotlin.ir.types.getClass
-import org.jetbrains.kotlin.ir.types.isNullable
+import org.jetbrains.kotlin.ir.util.functions
 import org.jetbrains.kotlin.ir.util.getSimpleFunction
 import org.jetbrains.kotlin.ir.util.packageFqName
 import org.jetbrains.kotlin.ir.util.parentClassOrNull
@@ -52,13 +52,14 @@ const val packageRuntime: String = "com.arkivanov.parcelize.darwin"
 
 val parcelizeName = FqName("$packageRuntime.Parcelize")
 val parcelableName = FqName("$packageRuntime.Parcelable")
-val decodedValueName = FqName("$packageRuntime.DecodedValue")
 val nsCodingName = FqName("$packageFoundation.NSSecureCodingProtocol")
 val nsCodingMetaName = FqName("$packageFoundation.NSSecureCodingProtocolMeta")
 val nsCoderName = FqName("$packageFoundation.NSCoder")
 val nsObjectName = FqName("platform.darwin.NSObject")
 val nsStringName = FqName("$packageFoundation.NSString")
 val nsLockName = FqName("$packageFoundation.NSLock")
+val nsArrayName = FqName("$packageFoundation.NSArray")
+val nsMutableArrayName = FqName("$packageFoundation.NSMutableArray")
 val objCClassName = FqName("kotlinx.cinterop.ObjCClass")
 val exportObjCClassName = FqName("kotlinx.cinterop.ExportObjCClass")
 val codingName = Name.identifier("coding")
@@ -108,6 +109,18 @@ fun IrClass.getFullCapitalizedName(): String {
 
     return str
 }
+
+fun IrClass.requireFunction(
+    name: String,
+    valueParameterTypes: List<IrType>? = null,
+): IrSimpleFunctionSymbol =
+    functions.first { f ->
+        (f.name.asString() == name) &&
+            ((valueParameterTypes == null) || (f.valueParameters.map { it.type.classFqName } == valueParameterTypes.map { it.classFqName }))
+    }.symbol
+
+fun IrType.requireClass(): IrClass =
+    requireNotNull(getClass()) { "Class is not found for type: ${render()}" }
 
 fun IrPluginContext.referenceFunction(
     name: String,
