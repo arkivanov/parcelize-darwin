@@ -11,19 +11,18 @@ pluginManagement {
     repositories {
         gradlePluginPortal()
         maven("https://jitpack.io")
-        mavenLocal()
     }
 
     resolutionStrategy {
         eachPlugin {
             if (requested.id.toString() == "com.arkivanov.gradle.setup") {
-//                useModule("com.github.arkivanov:gradle-setup-plugin:60ac46054c")
+                useModule("com.github.arkivanov:gradle-setup-plugin:1f7ac3c058")
             }
         }
     }
 
     plugins {
-        id("com.arkivanov.gradle.setup").version("0.0.1")
+        id("com.arkivanov.gradle.setup")
     }
 }
 
