@@ -1,10 +1,10 @@
 package com.arkivanov.parcelize.darwin
 
 import org.jetbrains.kotlin.backend.common.ClassLoweringPass
+import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
 import org.jetbrains.kotlin.backend.common.lower.irIfThen
 import org.jetbrains.kotlin.backend.common.lower.irThrow
 import org.jetbrains.kotlin.backend.wasm.ir2wasm.getSuperClass
-import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
 import org.jetbrains.kotlin.descriptors.Modality
@@ -42,8 +42,6 @@ import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
 import org.jetbrains.kotlin.ir.expressions.impl.IrGetValueImpl
 import org.jetbrains.kotlin.ir.interpreter.toIrConst
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
-import org.jetbrains.kotlin.ir.types.defaultType
-import org.jetbrains.kotlin.ir.types.makeNullable
 import org.jetbrains.kotlin.ir.util.addChild
 import org.jetbrains.kotlin.ir.util.addSimpleDelegatingConstructor
 import org.jetbrains.kotlin.ir.util.constructors
@@ -51,7 +49,6 @@ import org.jetbrains.kotlin.ir.util.copyTo
 import org.jetbrains.kotlin.ir.util.createImplicitParameterDeclarationWithWrappedDescriptor
 import org.jetbrains.kotlin.ir.util.defaultType
 import org.jetbrains.kotlin.ir.util.functions
-import org.jetbrains.kotlin.ir.util.getSimpleFunction
 import org.jetbrains.kotlin.ir.util.isObject
 import org.jetbrains.kotlin.ir.util.primaryConstructor
 import org.jetbrains.kotlin.ir.util.properties
@@ -59,11 +56,13 @@ import org.jetbrains.kotlin.ir.util.render
 import org.jetbrains.kotlin.name.Name
 
 class ParcelizeClassLoweringPass(
-    context: Context,
+    private val context: IrPluginContext,
     private val symbols: Symbols,
     private val coderFactory: CoderFactory,
-    private val logs: MessageCollector
-) : ClassLoweringPass, Context by context {
+) : ClassLoweringPass {
+
+    private val irFactory = context.irFactory
+    private val irBuiltIns = context.irBuiltIns
 
     override fun lower(irClass: IrClass) {
         if (!irClass.toIrBasedDescriptor().isParcelize()) {
@@ -124,7 +123,7 @@ class ParcelizeClassLoweringPass(
             }
             .also(::addChild)
             .apply {
-                superTypes = listOf(nsLockType, nsCodingType)
+                superTypes = listOf(symbols.nsLockType, symbols.nsSecureCodingType)
                 annotations = listOf(getExportObjCClassAnnotationCall(name = getFullCapitalizedName()))
                 createImplicitParameterDeclarationWithWrappedDescriptor()
             }
@@ -140,31 +139,31 @@ class ParcelizeClassLoweringPass(
             }
             .also(::addChild)
             .apply {
-                superTypes = listOf(nsObjectType, nsCodingMetaType)
+                superTypes = listOf(symbols.nsObjectType, symbols.nsSecureCodingMetaType)
                 createImplicitParameterDeclarationWithWrappedDescriptor()
             }
 
     private fun IrClass.addSupportsSecureCodingFunction() {
         addFunction {
             name = Name.identifier("supportsSecureCoding")
-            returnType = booleanType
+            returnType = symbols.booleanType
         }.apply {
-            overriddenSymbols = listOf(nsCodingMetaClass.getSimpleFunction("supportsSecureCoding")!!)
+            overriddenSymbols = listOf(symbols.nsSecureCodingMetaType.requireClass().requireFunction(name = "supportsSecureCoding"))
             dispatchReceiverParameter = this@addSupportsSecureCodingFunction.thisReceiver?.copyTo(this)
 
-            setBody(pluginContext) {
+            setBody(context) {
                 +irReturnTrue()
             }
         }
     }
 
     private fun getExportObjCClassAnnotationCall(name: String = ""): IrConstructorCall =
-        pluginContext
+        context
             .referenceConstructors(exportObjCClassName)
             .map(IrConstructorSymbol::owner)
-            .single { it.valueParameters.map(IrValueParameter::type) == listOf(stringType) }
+            .single { it.valueParameters.map(IrValueParameter::type) == listOf(symbols.stringType) }
             .toIrConstructorCall()
-            .apply { putValueArgument(0, name.toIrConst(stringType)) }
+            .apply { putValueArgument(0, name.toIrConst(symbols.stringType)) }
 
     private fun IrClass.addDataField(mainClass: IrClass, constructorParameter: IrValueParameter): IrField =
         irFactory
@@ -207,7 +206,7 @@ class ParcelizeClassLoweringPass(
             val receiverParameter = codingClass.thisReceiver!!.copyTo(this)
             dispatchReceiverParameter = receiverParameter
 
-            setBody(pluginContext) {
+            setBody(context) {
                 +irReturn(
                     irGetField(
                         irGet(receiverParameter.type, receiverParameter.symbol),
@@ -222,14 +221,14 @@ class ParcelizeClassLoweringPass(
     private fun IrClass.addEncodeWithCoderFunction(mainClass: IrClass, dataGetter: IrFunction, mainClassHash: Int) {
         addFunction {
             name = Name.identifier("encodeWithCoder")
-            returnType = unitType
+            returnType = symbols.unitType
         }.apply {
-            overriddenSymbols = listOf(nsCodingClass.getSimpleFunction("encodeWithCoder")!!)
+            overriddenSymbols = listOf(symbols.nsSecureCodingType.requireClass().requireFunction(name = "encodeWithCoder"))
             dispatchReceiverParameter = this@addEncodeWithCoderFunction.thisReceiver?.copyTo(this)
 
             addValueParameter {
                 name = Name.identifier("coder")
-                type = nsCoderType
+                type = symbols.nsCoderType
             }
 
             setEncodeWithCoderBody(
@@ -244,7 +243,7 @@ class ParcelizeClassLoweringPass(
         val thisReceiver = dispatchReceiverParameter!!
         val coderArgument = valueParameters[0]
 
-        setBody(pluginContext) {
+        setBody(context) {
             +irBlock {
                 val coder = irGet(coderArgument)
 
@@ -300,14 +299,14 @@ class ParcelizeClassLoweringPass(
     private fun IrClass.addInitWithCoderFunction(mainClass: IrClass, mainClassHash: Int) {
         addFunction {
             name = Name.identifier("initWithCoder")
-            returnType = pluginContext.referenceClass(nsCodingName)!!.defaultType.makeNullable() // FIXME: x
+            returnType = symbols.nsSecureCodingType
         }.apply {
-            overriddenSymbols = listOf(nsCodingClass.getSimpleFunction("initWithCoder")!!)
+            overriddenSymbols = listOf(symbols.nsSecureCodingType.requireClass().requireFunction(name = "initWithCoder"))
             dispatchReceiverParameter = this@addInitWithCoderFunction.thisReceiver?.copyTo(this)
 
             addValueParameter {
                 name = Name.identifier("coder")
-                type = nsCoderType
+                type = symbols.nsCoderType
             }
 
             setInitWithCoderBody(mainClass, mainClassHash)
@@ -317,7 +316,7 @@ class ParcelizeClassLoweringPass(
     private fun IrSimpleFunction.setInitWithCoderBody(mainClass: IrClass, mainClassHash: Int) {
         val coderArgument = valueParameters[0]
 
-        setBody(pluginContext) {
+        setBody(context) {
             +irBlock {
                 val decodedHash =
                     createTmpVariable(
@@ -413,7 +412,7 @@ class ParcelizeClassLoweringPass(
     private fun IrSimpleFunction.setCodingBody(codingClass: IrClass) {
         val thisReceiver = dispatchReceiverParameter!!
 
-        setBody(pluginContext) {
+        setBody(context) {
             val constructorCall = codingClass.primaryConstructor!!.toIrConstructorCall()
             constructorCall.putValueArgument(0, irGet(thisReceiver.type, thisReceiver.symbol))
             +irReturn(constructorCall)

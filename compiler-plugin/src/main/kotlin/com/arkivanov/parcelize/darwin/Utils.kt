@@ -25,7 +25,6 @@ import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.impl.IrConstructorCallImpl
-import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.IrSimpleType
 import org.jetbrains.kotlin.ir.types.IrStarProjection
@@ -33,10 +32,8 @@ import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.IrTypeArgument
 import org.jetbrains.kotlin.ir.types.IrTypeProjection
 import org.jetbrains.kotlin.ir.types.classFqName
-import org.jetbrains.kotlin.ir.types.defaultType
 import org.jetbrains.kotlin.ir.types.getClass
 import org.jetbrains.kotlin.ir.util.functions
-import org.jetbrains.kotlin.ir.util.getSimpleFunction
 import org.jetbrains.kotlin.ir.util.packageFqName
 import org.jetbrains.kotlin.ir.util.parentClassOrNull
 import org.jetbrains.kotlin.ir.util.primaryConstructor
@@ -52,8 +49,8 @@ const val packageRuntime: String = "com.arkivanov.parcelize.darwin"
 
 val parcelizeName = FqName("$packageRuntime.Parcelize")
 val parcelableName = FqName("$packageRuntime.Parcelable")
-val nsCodingName = FqName("$packageFoundation.NSSecureCodingProtocol")
-val nsCodingMetaName = FqName("$packageFoundation.NSSecureCodingProtocolMeta")
+val nsSecureCodingName = FqName("$packageFoundation.NSSecureCodingProtocol")
+val nsSecureCodingMetaName = FqName("$packageFoundation.NSSecureCodingProtocolMeta")
 val nsCoderName = FqName("$packageFoundation.NSCoder")
 val nsObjectName = FqName("platform.darwin.NSObject")
 val nsStringName = FqName("$packageFoundation.NSString")
@@ -74,9 +71,6 @@ fun ClassDescriptor.isParcelize(): Boolean =
 fun IrType.isParcelable(): Boolean =
     (classFqName == parcelableName) ||
         superTypes().any { (it.classFqName == parcelableName) || it.isParcelable() }
-
-fun IrClassSymbol.isParcelable(): Boolean =
-    defaultType.isParcelable()
 
 fun IrFunction.setBody(context: IrPluginContext, body: IrBlockBodyBuilder.() -> Unit): IrBlockBody =
     DeclarationIrBuilder(context, symbol)
@@ -125,13 +119,14 @@ fun IrType.requireClass(): IrClass =
 fun IrPluginContext.referenceFunction(
     name: String,
     extensionReceiverParameterType: IrType? = null,
-    valueParameterTypes: List<IrType> = emptyList()
+    valueParameterTypes: List<IrType> = emptyList(),
 ): IrSimpleFunctionSymbol =
-    referenceFunctions(FqName(name))
-        .firstOrNull {
-            (it.owner.extensionReceiverParameter?.type == extensionReceiverParameterType) &&
-                (it.owner.valueParameters.map { it.type.classFqName } == valueParameterTypes.map { it.classFqName })
-        } ?: error("Function $name not found")
+    requireNotNull(
+        referenceFunctions(FqName(name)).firstOrNull { f ->
+            (f.owner.extensionReceiverParameter?.type == extensionReceiverParameterType) &&
+                (f.owner.valueParameters.map { it.type.classFqName } == valueParameterTypes.map { it.classFqName })
+        }
+    ) { "Function $name not found" }
 
 fun IrBuilderWithScope.irCall(
     callee: IrSimpleFunctionSymbol,
@@ -186,7 +181,7 @@ fun IrBlockBuilder.irIncrementVariable(variable: IrValueDeclaration): IrExpressi
     irSet(
         variable = variable,
         value = irCall(
-            callee = variable.type.getClass()!!.getSimpleFunction("inc")!!,
+            callee = variable.type.requireClass().requireFunction(name = "inc"),
             dispatchReceiver = irGet(variable),
         ),
     )

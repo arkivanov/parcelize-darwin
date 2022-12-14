@@ -50,7 +50,7 @@ class ParcelizeResolveExtension(
                 emptyList(),
                 emptyList(),
                 emptyList(),
-                thisDescriptor.module.findClassAcrossModuleDependencies(ClassId.topLevel(nsCodingName))!!.defaultType,
+                thisDescriptor.module.findClassAcrossModuleDependencies(ClassId.topLevel(nsSecureCodingName))!!.defaultType,
                 Modality.FINAL,
                 DescriptorVisibilities.PUBLIC
             )

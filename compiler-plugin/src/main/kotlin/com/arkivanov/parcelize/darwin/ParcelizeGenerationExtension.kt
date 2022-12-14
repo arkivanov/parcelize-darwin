@@ -14,10 +14,9 @@ class ParcelizeGenerationExtension(
         val symbols = DefaultSymbols(pluginContext)
 
         ParcelizeClassLoweringPass(
-            context = ContextImpl(pluginContext),
+            context = pluginContext,
             symbols = symbols,
             coderFactory = CoderFactory(symbols),
-            logs = logs,
         ).lower(moduleFragment)
     }
 }

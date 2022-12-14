@@ -1,6 +1,5 @@
 package com.arkivanov.parcelize.darwin.tests
 
-import com.arkivanov.parcelize.darwin.DecodedValue
 import com.arkivanov.parcelize.darwin.Parcelable
 import com.arkivanov.parcelize.darwin.Parcelize
 import com.arkivanov.parcelize.darwin.decodeParcelable

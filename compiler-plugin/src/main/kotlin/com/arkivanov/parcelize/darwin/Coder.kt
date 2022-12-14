@@ -28,7 +28,6 @@ import org.jetbrains.kotlin.ir.types.makeNullable
 import org.jetbrains.kotlin.ir.util.companionObject
 import org.jetbrains.kotlin.ir.util.functions
 import org.jetbrains.kotlin.ir.util.getPropertyGetter
-import org.jetbrains.kotlin.ir.util.getSimpleFunction
 
 interface Coder {
 
@@ -360,7 +359,7 @@ private class ParcelableCoder(
                         callee = symbols.decodeObject,
                         extensionReceiver = coder,
                         arguments = listOf(
-                            irGetObject(symbols.nsLockClass.owner.companionObject()!!.symbol),
+                            irGetObject(symbols.nsLockType.requireClass().companionObject()!!.symbol),
                             key,
                         ),
                     )
@@ -415,7 +414,7 @@ private class CollectionCoder(
                     val iterator =
                         createTmpVariable(
                             irCall(
-                                callee = symbols.collectionType.classOrNull!!.getSimpleFunction("iterator")!!,
+                                callee = symbols.collectionType.requireClass().requireFunction(name = "iterator"),
                                 dispatchReceiver = irGet(collection),
                             )
                         )
@@ -425,7 +424,7 @@ private class CollectionCoder(
                     +irWhile(
                         condition = irEquals(
                             arg1 = irCall(
-                                callee = symbols.iteratorType.classOrNull!!.getSimpleFunction("hasNext")!!,
+                                callee = symbols.iteratorType.requireClass().requireFunction(name = "hasNext"),
                                 dispatchReceiver = irGet(iterator),
                             ),
                             arg2 = irTrue(),
@@ -434,7 +433,7 @@ private class CollectionCoder(
                             val item =
                                 createTmpVariable(
                                     irCall(
-                                        callee = symbols.iteratorType.classOrNull!!.getSimpleFunction("next")!!,
+                                        callee = symbols.iteratorType.requireClass().requireFunction(name = "next"),
                                         dispatchReceiver = irGet(iterator),
                                     )
                                 )
@@ -476,7 +475,7 @@ private class CollectionCoder(
                         condition = irNotEquals(arg1 = irGet(index), arg2 = irGet(size)),
                         body = irBlock {
                             +irCall(
-                                callee = collectionConstructor.owner.returnType.classOrNull!!.getSimpleFunction("add")!!,
+                                callee = collectionConstructor.owner.returnType.requireClass().requireFunction(name = "add"),
                                 dispatchReceiver = irGet(collection),
                                 arguments = listOf(
                                     with(itemCoder) {
@@ -586,16 +585,16 @@ private class MapCoder(
                         condition = irNotEquals(arg1 = irGet(index), arg2 = irGet(keysSize)),
                         body = irBlock {
                             +irCall(
-                                callee = mapConstructor.owner.returnType.classOrNull!!.getSimpleFunction("put")!!,
+                                callee = mapConstructor.owner.returnType.requireClass().requireFunction(name = "put"),
                                 dispatchReceiver = irGet(map),
                                 arguments = listOf(
                                     irCall(
-                                        callee = symbols.listType.classOrNull!!.getSimpleFunction("get")!!,
+                                        callee = symbols.listType.requireClass().requireFunction(name = "get"),
                                         dispatchReceiver = irGet(keys),
                                         arguments = listOf(irGet(index)),
                                     ),
                                     irCall(
-                                        callee = symbols.listType.classOrNull!!.getSimpleFunction("get")!!,
+                                        callee = symbols.listType.requireClass().requireFunction(name = "get"),
                                         dispatchReceiver = irGet(values),
                                         arguments = listOf(irGet(index)),
                                     ),

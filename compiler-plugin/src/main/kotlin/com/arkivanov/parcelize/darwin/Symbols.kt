@@ -5,7 +5,6 @@ import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.IrType
-import org.jetbrains.kotlin.ir.types.classOrNull
 import org.jetbrains.kotlin.ir.types.defaultType
 import org.jetbrains.kotlin.ir.types.makeNullable
 import org.jetbrains.kotlin.ir.util.constructors
@@ -14,8 +13,12 @@ import org.jetbrains.kotlin.name.FqName
 
 interface Symbols {
 
+    val nsObjectType: IrType
     val nsStringClass: IrClassSymbol
-    val nsLockClass: IrClassSymbol
+    val nsLockType: IrType
+    val nsSecureCodingType: IrType
+    val nsSecureCodingMetaType: IrType
+    val nsCoderType: IrType
     val objCClassType: IrType
     val nsArrayType: IrType
     val nsMutableArrayType: IrType
@@ -23,9 +26,7 @@ interface Symbols {
     val parcelableType: IrType
     val parcelableNType: IrType
     val iteratorType: IrType
-    val iterableType: IrType
     val collectionType: IrType
-    val mutableCollectionType: IrType
     val listType: IrType
     val mutableListType: IrType
     val setType: IrType
@@ -87,22 +88,22 @@ class DefaultSymbols(
     pluginContext: IrPluginContext,
 ) : Symbols {
 
-    private val nsCoderClass: IrClassSymbol = pluginContext.referenceClass(nsCoderName).require()
     private val parcelableClass: IrClassSymbol = pluginContext.referenceClass(parcelableName).require()
-    private val nsCoderType: IrType = nsCoderClass.defaultType
 
+    override val nsObjectType: IrType = pluginContext.referenceClass(nsObjectName).require().defaultType
     override val nsStringClass: IrClassSymbol = pluginContext.referenceClass(nsStringName).require()
-    override val nsLockClass: IrClassSymbol = pluginContext.referenceClass(nsLockName).require()
-    override val objCClassType: IrType = pluginContext.referenceClass(objCClassName)!!.defaultType
-    override val nsArrayType: IrType = pluginContext.referenceClass(nsArrayName)!!.defaultType
+    override val nsLockType: IrType = pluginContext.referenceClass(nsLockName).require().defaultType
+    override val nsSecureCodingType: IrType = pluginContext.referenceClass(nsSecureCodingName).require().defaultType
+    override val nsSecureCodingMetaType: IrType = pluginContext.referenceClass(nsSecureCodingMetaName).require().defaultType
+    override val nsCoderType: IrType = pluginContext.referenceClass(nsCoderName).require().defaultType
+    override val objCClassType: IrType = pluginContext.referenceClass(objCClassName).require().defaultType
+    override val nsArrayType: IrType = pluginContext.referenceClass(nsArrayName).require().defaultType
     override val nsMutableArrayType: IrType = pluginContext.referenceClass(nsMutableArrayName)!!.defaultType
 
     override val parcelableType: IrType = parcelableClass.defaultType
     override val parcelableNType: IrType = parcelableType.makeNullable()
     override val iteratorType: IrType = pluginContext.irBuiltIns.iteratorClass.defaultType
-    override val iterableType: IrType = pluginContext.irBuiltIns.iterableClass.defaultType
     override val collectionType: IrType = pluginContext.irBuiltIns.collectionClass.defaultType
-    override val mutableCollectionType: IrType = pluginContext.irBuiltIns.mutableCollectionClass.defaultType
     override val listType: IrType = pluginContext.irBuiltIns.listClass.defaultType
     override val mutableListType: IrType = pluginContext.irBuiltIns.mutableListClass.defaultType
     override val setType: IrType = pluginContext.irBuiltIns.setClass.defaultType
@@ -130,50 +131,49 @@ class DefaultSymbols(
     override val booleanNType: IrType = booleanType.makeNullable()
     override val stringType: IrType = pluginContext.irBuiltIns.stringType
     override val stringNType: IrType = stringType.makeNullable()
-    override val uLongType: IrType = pluginContext.referenceClass(FqName("kotlin.ULong"))!!.defaultType
+    override val uLongType: IrType = pluginContext.referenceClass(FqName("kotlin.ULong")).require().defaultType
 
     override val arrayListConstructor: IrConstructorSymbol =
-        pluginContext.referenceClass(FqName("kotlin.collections.ArrayList"))!!
+        pluginContext.referenceClass(FqName("kotlin.collections.ArrayList")).require()
             .owner
             .constructors
             .first { it.valueParameters.isEmpty() }
             .symbol
 
     override val hashSetConstructor: IrConstructorSymbol =
-        pluginContext.referenceClass(FqName("kotlin.collections.HashSet"))!!
+        pluginContext.referenceClass(FqName("kotlin.collections.HashSet")).require()
             .owner
             .constructors
             .first { it.valueParameters.isEmpty() }
             .symbol
 
     override val hashMapConstructor: IrConstructorSymbol =
-        pluginContext.referenceClass(FqName("kotlin.collections.HashMap"))!!
+        pluginContext.referenceClass(FqName("kotlin.collections.HashMap")).require()
             .owner
             .constructors
             .first { it.valueParameters.isEmpty() }
             .symbol
 
     override val nsMutableArrayConstructor: IrConstructorSymbol =
-        pluginContext.referenceClass(FqName("$packageFoundation.NSMutableArray"))!!
+        pluginContext.referenceClass(FqName("$packageFoundation.NSMutableArray")).require()
             .owner
             .constructors
             .first { it.valueParameters.isEmpty() }
             .symbol
 
     override val illegalStateExceptionConstructor: IrConstructorSymbol =
-        pluginContext.referenceClass(FqName("kotlin.IllegalStateException"))!!
+        pluginContext.referenceClass(FqName("kotlin.IllegalStateException")).require()
             .owner
             .constructors
             .first { it.valueParameters.size == 1 }
             .symbol
 
-    override val shortToInt: IrSimpleFunctionSymbol = shortType.classOrNull!!.getSimpleFunction("toInt")!!
-    override val intToShort: IrSimpleFunctionSymbol = intType.classOrNull!!.getSimpleFunction("toShort")!!
-    override val byteToInt: IrSimpleFunctionSymbol = byteType.classOrNull!!.getSimpleFunction("toInt")!!
-    override val intToByte: IrSimpleFunctionSymbol = intType.classOrNull!!.getSimpleFunction("toByte")!!
-    override val charToInt: IrSimpleFunctionSymbol = charType.classOrNull!!.getSimpleFunction("toInt")!!
-    override val intToChar: IrSimpleFunctionSymbol = intType.classOrNull!!.getSimpleFunction("toChar")!!
-
+    override val shortToInt: IrSimpleFunctionSymbol = shortType.requireClass().requireFunction(name = "toInt")
+    override val intToShort: IrSimpleFunctionSymbol = intType.requireClass().requireFunction(name = "toShort")
+    override val byteToInt: IrSimpleFunctionSymbol = byteType.requireClass().requireFunction(name = "toInt")
+    override val intToByte: IrSimpleFunctionSymbol = intType.requireClass().requireFunction(name = "toByte")
+    override val charToInt: IrSimpleFunctionSymbol = charType.requireClass().requireFunction(name = "toInt")
+    override val intToChar: IrSimpleFunctionSymbol = intType.requireClass().requireFunction(name = "toChar")
     override val getCoding: IrSimpleFunctionSymbol = parcelableClass.getSimpleFunction("coding")!!
 
     override val println: IrSimpleFunctionSymbol =
