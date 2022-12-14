@@ -1,6 +1,6 @@
 # parcelize-darwin
 
-Experimental Kotlin/Native compiler plugin that generates `Parcelable` implementations for Darwin (Apple) targets. Allows writing `Parcelable` classes for all Darwin targets, similary to the Android's `kotlin-parcelize` plugin. Can be also used together with the `kotlin-parcelize` plugin to write `Parcelable` classes in the `commonMain` source set.
+**Experimental** Kotlin/Native compiler plugin that generates `Parcelable` implementations for Darwin (Apple) targets. Allows writing `Parcelable` classes for all Darwin targets, similary to the Android's `kotlin-parcelize` plugin. Can be also used together with the `kotlin-parcelize` plugin to write `Parcelable` classes in the `commonMain` source set.
 
 Supported targets: `ios`, `watchos`, `tvos` and `macos`
 
