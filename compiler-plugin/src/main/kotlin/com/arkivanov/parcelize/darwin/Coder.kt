@@ -1,6 +1,6 @@
 package com.arkivanov.parcelize.darwin
 
-import org.jetbrains.kotlin.ir.builders.IrBlockBuilder
+import org.jetbrains.kotlin.ir.builders.IrBuilderWithScope
 import org.jetbrains.kotlin.ir.builders.createTmpVariable
 import org.jetbrains.kotlin.ir.builders.irBlock
 import org.jetbrains.kotlin.ir.builders.irBoolean
@@ -31,13 +31,13 @@ import org.jetbrains.kotlin.ir.util.getPropertyGetter
 
 interface Coder {
 
-    fun IrBlockBuilder.encode(
+    fun IrBuilderWithScope.encode(
         coder: IrExpression,
         value: IrExpression,
         key: IrExpression,
     ): IrExpression
 
-    fun IrBlockBuilder.decode(
+    fun IrBuilderWithScope.decode(
         coder: IrExpression,
         key: IrExpression,
     ): IrExpression
@@ -74,8 +74,8 @@ class CoderFactory(
                     isNullable = type.isNullable,
                     encodeFunction = symbols.encodeInt,
                     decodeFunction = symbols.decodeInt,
-                    valueTo = { irCall(callee = symbols.shortToInt, dispatchReceiver = it) },
-                    valueFrom = { irCall(callee = symbols.intToShort, dispatchReceiver = it) },
+                    valueTo = { irCallCompat(callee = symbols.shortToInt, dispatchReceiver = it) },
+                    valueFrom = { irCallCompat(callee = symbols.intToShort, dispatchReceiver = it) },
                 )
 
             is SupportedType.PrimitiveByte ->
@@ -84,8 +84,8 @@ class CoderFactory(
                     isNullable = type.isNullable,
                     encodeFunction = symbols.encodeInt,
                     decodeFunction = symbols.decodeInt,
-                    valueTo = { irCall(callee = symbols.byteToInt, dispatchReceiver = it) },
-                    valueFrom = { irCall(callee = symbols.intToByte, dispatchReceiver = it) },
+                    valueTo = { irCallCompat(callee = symbols.byteToInt, dispatchReceiver = it) },
+                    valueFrom = { irCallCompat(callee = symbols.intToByte, dispatchReceiver = it) },
                 )
 
             is SupportedType.PrimitiveChar ->
@@ -94,8 +94,8 @@ class CoderFactory(
                     isNullable = type.isNullable,
                     encodeFunction = symbols.encodeInt,
                     decodeFunction = symbols.decodeInt,
-                    valueTo = { irCall(callee = symbols.charToInt, dispatchReceiver = it) },
-                    valueFrom = { irCall(callee = symbols.intToChar, dispatchReceiver = it) },
+                    valueTo = { irCallCompat(callee = symbols.charToInt, dispatchReceiver = it) },
+                    valueFrom = { irCallCompat(callee = symbols.intToChar, dispatchReceiver = it) },
                 )
 
             is SupportedType.PrimitiveBoolean ->
@@ -184,29 +184,29 @@ private class PrimitiveCoder(
     private val isNullable: Boolean,
     private val encodeFunction: IrSimpleFunctionSymbol,
     private val decodeFunction: IrSimpleFunctionSymbol,
-    private val valueTo: IrBlockBuilder.(IrExpression) -> IrExpression = { it },
-    private val valueFrom: IrBlockBuilder.(IrExpression) -> IrExpression = { it },
+    private val valueTo: IrBuilderWithScope.(IrExpression) -> IrExpression = { it },
+    private val valueFrom: IrBuilderWithScope.(IrExpression) -> IrExpression = { it },
 ) : Coder {
 
-    override fun IrBlockBuilder.encode(coder: IrExpression, value: IrExpression, key: IrExpression): IrExpression {
+    override fun IrBuilderWithScope.encode(coder: IrExpression, value: IrExpression, key: IrExpression): IrExpression {
         val encode =
-            irCall(
+            irCallCompat(
                 callee = encodeFunction,
                 extensionReceiver = coder,
-                arguments = listOfNotNull(valueTo(value), key),
+                arguments = listOf(valueTo(value), key),
             )
 
         return if (isNullable) {
             irIfNull(
                 type = symbols.unitType,
                 subject = value,
-                thenPart = irCall(
+                thenPart = irCallCompat(
                     callee = symbols.encodeBoolean,
                     extensionReceiver = coder,
                     arguments = listOf(irBoolean(false), irConcatStrings(key, irString("-exists"))),
                 ),
                 elsePart = irBlock {
-                    +irCall(
+                    +irCallCompat(
                         callee = symbols.encodeBoolean,
                         extensionReceiver = coder,
                         arguments = listOf(irBoolean(true), irConcatStrings(key, irString("-exists"))),
@@ -220,10 +220,10 @@ private class PrimitiveCoder(
         }
     }
 
-    override fun IrBlockBuilder.decode(coder: IrExpression, key: IrExpression): IrExpression {
+    override fun IrBuilderWithScope.decode(coder: IrExpression, key: IrExpression): IrExpression {
         val decode =
             valueFrom(
-                irCall(
+                irCallCompat(
                     callee = decodeFunction,
                     extensionReceiver = coder,
                     arguments = listOf(key),
@@ -233,7 +233,7 @@ private class PrimitiveCoder(
         return if (isNullable) {
             irIfThenElse(
                 type = decode.type.makeNullable(),
-                condition = irCall(
+                condition = irCallCompat(
                     callee = symbols.decodeBoolean,
                     extensionReceiver = coder,
                     arguments = listOf(irConcatStrings(key, irString("-exists"))),
@@ -251,15 +251,15 @@ private class StringCoder(
     private val symbols: Symbols,
 ) : Coder {
 
-    override fun IrBlockBuilder.encode(coder: IrExpression, value: IrExpression, key: IrExpression): IrExpression =
-        irCall(
+    override fun IrBuilderWithScope.encode(coder: IrExpression, value: IrExpression, key: IrExpression): IrExpression =
+        irCallCompat(
             callee = symbols.encodeObject,
             extensionReceiver = coder,
             arguments = listOf(value, key),
         )
 
-    override fun IrBlockBuilder.decode(coder: IrExpression, key: IrExpression): IrExpression =
-        irCall(
+    override fun IrBuilderWithScope.decode(coder: IrExpression, key: IrExpression): IrExpression =
+        irCallCompat(
             callee = symbols.decodeObject,
             extensionReceiver = coder,
             arguments = listOf(
@@ -283,7 +283,7 @@ private class EnumCoder(
                 function.valueParameters.single().type.isString()
         }.symbol
 
-    override fun IrBlockBuilder.encode(coder: IrExpression, value: IrExpression, key: IrExpression): IrExpression =
+    override fun IrBuilderWithScope.encode(coder: IrExpression, value: IrExpression, key: IrExpression): IrExpression =
         irBlock {
             val name =
                 createTmpVariable(
@@ -291,7 +291,7 @@ private class EnumCoder(
                         type = symbols.stringType,
                         subject = value,
                         thenPart = irNull(),
-                        elsePart = irCall(
+                        elsePart = irCallCompat(
                             callee = type.getClass()!!.getPropertyGetter("name")!!,
                             dispatchReceiver = value,
                         ),
@@ -307,20 +307,20 @@ private class EnumCoder(
             }
         }
 
-    override fun IrBlockBuilder.decode(coder: IrExpression, key: IrExpression): IrExpression =
+    override fun IrBuilderWithScope.decode(coder: IrExpression, key: IrExpression): IrExpression =
         irBlock {
             val name =
                 createTmpVariable(
                     with(stringCoder) {
                         decode(coder = coder, key = key)
-                    }
+                    },
                 )
 
             +irIfNull(
                 type = type,
                 subject = irGet(name),
                 thenPart = irNull(),
-                elsePart = irCall(
+                elsePart = irCallCompat(
                     callee = enumValueOf,
                     arguments = listOf(irGet(name)),
                 ),
@@ -332,44 +332,44 @@ private class ParcelableCoder(
     private val symbols: Symbols,
 ) : Coder {
 
-    override fun IrBlockBuilder.encode(coder: IrExpression, value: IrExpression, key: IrExpression): IrExpression =
+    override fun IrBuilderWithScope.encode(coder: IrExpression, value: IrExpression, key: IrExpression): IrExpression =
         irIfNull(
             type = symbols.unitType,
             subject = value,
-            thenPart = irCall(
+            thenPart = irCallCompat(
                 callee = symbols.encodeObject,
                 extensionReceiver = coder,
                 arguments = listOf(irNull(), key),
             ),
-            elsePart = irCall(
+            elsePart = irCallCompat(
                 callee = symbols.encodeObject,
                 extensionReceiver = coder,
                 arguments = listOf(
-                    irCall(callee = symbols.getCoding, dispatchReceiver = value),
+                    irCallCompat(callee = symbols.getCoding, dispatchReceiver = value),
                     key,
                 ),
             ),
         )
 
-    override fun IrBlockBuilder.decode(coder: IrExpression, key: IrExpression): IrExpression =
+    override fun IrBuilderWithScope.decode(coder: IrExpression, key: IrExpression): IrExpression =
         irBlock {
             val nsMutableArray =
                 createTmpVariable(
-                    irCall(
+                    irCallCompat(
                         callee = symbols.decodeObject,
                         extensionReceiver = coder,
                         arguments = listOf(
                             irGetObject(symbols.nsLockType.requireClass().companionObject()!!.symbol),
                             key,
                         ),
-                    )
+                    ),
                 )
 
             +irIfNull(
                 type = symbols.parcelableNType,
                 subject = irGet(nsMutableArray),
                 thenPart = irNull(),
-                elsePart = irCall(
+                elsePart = irCallCompat(
                     callee = symbols.nsArrayType.requireClass().requireFunction(name = "objectAtIndex"),
                     dispatchReceiver = irGet(nsMutableArray),
                     arguments = listOf(irLong(value = 0, type = symbols.uLongType)),
@@ -384,7 +384,7 @@ private class CollectionCoder(
     private val itemCoder: Coder,
 ) : Coder {
 
-    override fun IrBlockBuilder.encode(coder: IrExpression, value: IrExpression, key: IrExpression): IrExpression =
+    override fun IrBuilderWithScope.encode(coder: IrExpression, value: IrExpression, key: IrExpression): IrExpression =
         irBlock {
             val collection = createTmpVariable(value)
 
@@ -394,14 +394,14 @@ private class CollectionCoder(
                         type = symbols.intType,
                         subject = irGet(collection),
                         thenPart = irInt(-1),
-                        elsePart = irCall(
+                        elsePart = irCallCompat(
                             callee = symbols.collectionType.classOrNull!!.getPropertyGetter("size")!!,
                             dispatchReceiver = irGet(collection),
                         ),
                     )
                 )
 
-            +irCall(
+            +irCallCompat(
                 callee = symbols.encodeInt,
                 extensionReceiver = coder,
                 arguments = listOf(irGet(size), irConcatStrings(key, irString("-size"))),
@@ -413,17 +413,17 @@ private class CollectionCoder(
                 thenPart = irBlock {
                     val iterator =
                         createTmpVariable(
-                            irCall(
+                            irCallCompat(
                                 callee = symbols.collectionType.requireClass().requireFunction(name = "iterator"),
                                 dispatchReceiver = irGet(collection),
-                            )
+                            ),
                         )
 
-                    val index = createTmpVariable(irExpression = irInt(0))
+                    val index = createTmpVariable(irExpression = irInt(0), isMutable = true)
 
                     +irWhile(
                         condition = irEquals(
-                            arg1 = irCall(
+                            arg1 = irCallCompat(
                                 callee = symbols.iteratorType.requireClass().requireFunction(name = "hasNext"),
                                 dispatchReceiver = irGet(iterator),
                             ),
@@ -432,7 +432,7 @@ private class CollectionCoder(
                         body = irBlock {
                             val item =
                                 createTmpVariable(
-                                    irCall(
+                                    irCallCompat(
                                         callee = symbols.iteratorType.requireClass().requireFunction(name = "next"),
                                         dispatchReceiver = irGet(iterator),
                                     )
@@ -453,11 +453,11 @@ private class CollectionCoder(
             )
         }
 
-    override fun IrBlockBuilder.decode(coder: IrExpression, key: IrExpression): IrExpression =
+    override fun IrBuilderWithScope.decode(coder: IrExpression, key: IrExpression): IrExpression =
         irBlock {
             val size =
                 createTmpVariable(
-                    irCall(
+                    irCallCompat(
                         callee = symbols.decodeInt,
                         extensionReceiver = coder,
                         arguments = listOf(irConcatStrings(key, irString("-size"))),
@@ -468,13 +468,13 @@ private class CollectionCoder(
                 type = collectionConstructor.owner.returnType.makeNullable(),
                 condition = irNotEquals(irGet(size), irInt(-1)),
                 thenPart = irBlock {
-                    val collection = createTmpVariable(irCall(callee = collectionConstructor))
-                    val index = createTmpVariable(irExpression = irInt(0))
+                    val collection = createTmpVariable(irCallCompat(callee = collectionConstructor))
+                    val index = createTmpVariable(irExpression = irInt(0), isMutable = true)
 
                     +irWhile(
                         condition = irNotEquals(arg1 = irGet(index), arg2 = irGet(size)),
                         body = irBlock {
-                            +irCall(
+                            +irCallCompat(
                                 callee = collectionConstructor.owner.returnType.requireClass().requireFunction(name = "add"),
                                 dispatchReceiver = irGet(collection),
                                 arguments = listOf(
@@ -505,7 +505,7 @@ private class MapCoder(
     private val valuesCoder: Coder,
 ) : Coder {
 
-    override fun IrBlockBuilder.encode(coder: IrExpression, value: IrExpression, key: IrExpression): IrExpression =
+    override fun IrBuilderWithScope.encode(coder: IrExpression, value: IrExpression, key: IrExpression): IrExpression =
         irBlock {
             with(keysCoder) {
                 +encode(
@@ -514,7 +514,7 @@ private class MapCoder(
                         type = symbols.collectionType,
                         subject = value,
                         thenPart = irNull(),
-                        elsePart = irCall(
+                        elsePart = irCallCompat(
                             callee = value.type.getClass()!!.getPropertyGetter("keys")!!,
                             dispatchReceiver = value,
                         ),
@@ -530,7 +530,7 @@ private class MapCoder(
                         type = symbols.collectionType,
                         subject = value,
                         thenPart = irNull(),
-                        elsePart = irCall(
+                        elsePart = irCallCompat(
                             callee = value.type.getClass()!!.getPropertyGetter("values")!!,
                             dispatchReceiver = value,
                         ),
@@ -540,7 +540,7 @@ private class MapCoder(
             }
         }
 
-    override fun IrBlockBuilder.decode(coder: IrExpression, key: IrExpression): IrExpression =
+    override fun IrBuilderWithScope.decode(coder: IrExpression, key: IrExpression): IrExpression =
         irBlock {
             val keys =
                 createTmpVariable(
@@ -569,31 +569,31 @@ private class MapCoder(
                 subject = irGet(keys),
                 thenPart = irNull(),
                 elsePart = irBlock {
-                    val map = createTmpVariable(irCall(callee = mapConstructor))
+                    val map = createTmpVariable(irCallCompat(callee = mapConstructor))
 
                     val keysSize =
                         createTmpVariable(
-                            irCall(
+                            irCallCompat(
                                 callee = symbols.listType.classOrNull!!.getPropertyGetter("size")!!,
                                 dispatchReceiver = irGet(keys),
                             )
                         )
 
-                    val index = createTmpVariable(irExpression = irInt(0))
+                    val index = createTmpVariable(irExpression = irInt(0), isMutable = true)
 
                     +irWhile(
                         condition = irNotEquals(arg1 = irGet(index), arg2 = irGet(keysSize)),
                         body = irBlock {
-                            +irCall(
+                            +irCallCompat(
                                 callee = mapConstructor.owner.returnType.requireClass().requireFunction(name = "put"),
                                 dispatchReceiver = irGet(map),
                                 arguments = listOf(
-                                    irCall(
+                                    irCallCompat(
                                         callee = symbols.listType.requireClass().requireFunction(name = "get"),
                                         dispatchReceiver = irGet(keys),
                                         arguments = listOf(irGet(index)),
                                     ),
-                                    irCall(
+                                    irCallCompat(
                                         callee = symbols.listType.requireClass().requireFunction(name = "get"),
                                         dispatchReceiver = irGet(values),
                                         arguments = listOf(irGet(index)),

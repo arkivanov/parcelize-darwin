@@ -1,6 +1,6 @@
 [versions]
 
-plugin = "0.1.1"
+plugin = "0.1.2"
 kotlin = "1.7.21"
 buildConfigGradlePlugin = "3.1.0"
 googleAutoService = "1.0.1"

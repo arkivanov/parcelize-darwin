@@ -9,6 +9,7 @@ import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.ir.builders.IrBlockBodyBuilder
 import org.jetbrains.kotlin.ir.builders.IrBlockBuilder
 import org.jetbrains.kotlin.ir.builders.IrBuilderWithScope
+import org.jetbrains.kotlin.ir.builders.irBlock
 import org.jetbrains.kotlin.ir.builders.irBlockBody
 import org.jetbrains.kotlin.ir.builders.irCall
 import org.jetbrains.kotlin.ir.builders.irConcat
@@ -24,7 +25,9 @@ import org.jetbrains.kotlin.ir.expressions.IrBlockBody
 import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
+import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
 import org.jetbrains.kotlin.ir.expressions.impl.IrConstructorCallImpl
+import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
 import org.jetbrains.kotlin.ir.types.IrSimpleType
 import org.jetbrains.kotlin.ir.types.IrStarProjection
@@ -33,6 +36,7 @@ import org.jetbrains.kotlin.ir.types.IrTypeArgument
 import org.jetbrains.kotlin.ir.types.IrTypeProjection
 import org.jetbrains.kotlin.ir.types.classFqName
 import org.jetbrains.kotlin.ir.types.getClass
+import org.jetbrains.kotlin.ir.util.SYNTHETIC_OFFSET
 import org.jetbrains.kotlin.ir.util.functions
 import org.jetbrains.kotlin.ir.util.packageFqName
 import org.jetbrains.kotlin.ir.util.parentClassOrNull
@@ -128,30 +132,49 @@ fun IrPluginContext.referenceFunction(
         }
     ) { "Function $name not found" }
 
-fun IrBuilderWithScope.irCall(
+fun IrBuilderWithScope.irCallCompat(
     callee: IrSimpleFunctionSymbol,
     extensionReceiver: IrExpression? = null,
     dispatchReceiver: IrExpression? = null,
     arguments: List<IrExpression> = emptyList(),
-): IrCall =
-    irCall(callee).apply {
-        this.extensionReceiver = extensionReceiver
-        this.dispatchReceiver = dispatchReceiver
+): IrExpression =
+    irBlock(startOffset = SYNTHETIC_OFFSET, endOffset = SYNTHETIC_OFFSET) {
+        +irCall(callee).apply {
+            this.extensionReceiver = extensionReceiver
+            this.dispatchReceiver = dispatchReceiver
 
-        arguments.forEachIndexed { index, argument ->
-            putValueArgument(index, argument)
+            arguments.forEachIndexed { index, argument ->
+                putValueArgument(index, argument)
+            }
         }
     }
 
-fun IrBlockBuilder.irConcatStrings(
+fun IrBuilderWithScope.irCallCompat(
+    callee: IrConstructorSymbol,
+    block: IrConstructorCall.() -> Unit = {},
+): IrExpression =
+    irBlock(startOffset = SYNTHETIC_OFFSET, endOffset = SYNTHETIC_OFFSET) {
+        +irCall(callee, callee.owner.returnType).apply(block)
+    }
+
+fun IrBuilderWithScope.irCallCompat(
+    callee: IrFunction,
+    origin: IrStatementOrigin? = null,
+    block: IrCall.() -> Unit = {},
+): IrExpression =
+    irBlock(startOffset = SYNTHETIC_OFFSET, endOffset = SYNTHETIC_OFFSET) {
+        +irCall(callee = callee, origin = origin).apply(block)
+    }
+
+fun IrBuilderWithScope.irConcatStrings(
     vararg args: IrExpression,
 ): IrExpression =
     irConcat().apply {
         arguments += args
     }
 
-fun IrBlockBuilder.irPrintLn(callee: IrSimpleFunctionSymbol, obj: IrExpression): IrCall =
-    irCall(callee = callee, arguments = listOf(obj))
+fun IrBlockBuilder.irPrintLn(callee: IrSimpleFunctionSymbol, obj: IrExpression): IrExpression =
+    irCallCompat(callee = callee, arguments = listOf(obj))
 
 fun IrTypeArgument.upperBound(anyNType: IrType): IrType =
     when (this) {
@@ -172,15 +195,17 @@ fun IrBlockBuilder.irWhile(
     condition: IrExpression,
     body: IrExpression,
 ): IrExpression =
-    irWhile().apply {
-        this.condition = condition
-        this.body = body
+    irBlock(startOffset = SYNTHETIC_OFFSET, endOffset = SYNTHETIC_OFFSET) {
+        +irWhile().apply {
+            this.condition = condition
+            this.body = body
+        }
     }
 
 fun IrBlockBuilder.irIncrementVariable(variable: IrValueDeclaration): IrExpression =
     irSet(
         variable = variable,
-        value = irCall(
+        value = irCallCompat(
             callee = variable.type.requireClass().requireFunction(name = "inc"),
             dispatchReceiver = irGet(variable),
         ),

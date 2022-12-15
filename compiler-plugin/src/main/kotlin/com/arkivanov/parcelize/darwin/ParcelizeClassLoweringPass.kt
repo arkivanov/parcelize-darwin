@@ -9,6 +9,7 @@ import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
+import org.jetbrains.kotlin.ir.builders.IrBlockBodyBuilder
 import org.jetbrains.kotlin.ir.builders.IrBlockBuilder
 import org.jetbrains.kotlin.ir.builders.createTmpVariable
 import org.jetbrains.kotlin.ir.builders.declarations.addFunction
@@ -18,7 +19,6 @@ import org.jetbrains.kotlin.ir.builders.declarations.addValueParameter
 import org.jetbrains.kotlin.ir.builders.declarations.buildClass
 import org.jetbrains.kotlin.ir.builders.declarations.buildField
 import org.jetbrains.kotlin.ir.builders.irBlock
-import org.jetbrains.kotlin.ir.builders.irCall
 import org.jetbrains.kotlin.ir.builders.irGet
 import org.jetbrains.kotlin.ir.builders.irGetField
 import org.jetbrains.kotlin.ir.builders.irGetObject
@@ -38,16 +38,19 @@ import org.jetbrains.kotlin.ir.declarations.IrValueParameter
 import org.jetbrains.kotlin.ir.descriptors.toIrBasedDescriptor
 import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.expressions.IrExpression
+import org.jetbrains.kotlin.ir.expressions.IrFunctionAccessExpression
 import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
 import org.jetbrains.kotlin.ir.expressions.impl.IrGetValueImpl
 import org.jetbrains.kotlin.ir.interpreter.toIrConst
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
+import org.jetbrains.kotlin.ir.util.SYNTHETIC_OFFSET
 import org.jetbrains.kotlin.ir.util.addChild
 import org.jetbrains.kotlin.ir.util.addSimpleDelegatingConstructor
 import org.jetbrains.kotlin.ir.util.constructors
 import org.jetbrains.kotlin.ir.util.copyTo
 import org.jetbrains.kotlin.ir.util.createImplicitParameterDeclarationWithWrappedDescriptor
 import org.jetbrains.kotlin.ir.util.defaultType
+import org.jetbrains.kotlin.ir.util.dump
 import org.jetbrains.kotlin.ir.util.functions
 import org.jetbrains.kotlin.ir.util.isObject
 import org.jetbrains.kotlin.ir.util.primaryConstructor
@@ -120,6 +123,8 @@ class ParcelizeClassLoweringPass(
                 kind = ClassKind.CLASS
                 visibility = DescriptorVisibilities.PRIVATE
                 modality = Modality.FINAL
+                startOffset = SYNTHETIC_OFFSET
+                endOffset = SYNTHETIC_OFFSET
             }
             .also(::addChild)
             .apply {
@@ -250,8 +255,10 @@ class ParcelizeClassLoweringPass(
                 addEncodeHashStatement(mainClassHash = mainClassHash, coder = coder)
 
                 if (!mainClass.isObject) {
-                    val data = irCall(dataGetter, IrStatementOrigin.GET_PROPERTY)
-                    data.dispatchReceiver = irGet(thisReceiver.type, thisReceiver.symbol)
+                    val data =
+                        irCallCompat(callee = dataGetter, origin = IrStatementOrigin.GET_PROPERTY) {
+                            dispatchReceiver = irGet(thisReceiver.type, thisReceiver.symbol)
+                        }
 
                     mainClass.parcelableFields.forEach { field ->
                         try {
@@ -317,77 +324,74 @@ class ParcelizeClassLoweringPass(
         val coderArgument = valueParameters[0]
 
         setBody(context) {
-            +irBlock {
-                val decodedHash =
-                    createTmpVariable(
-                        with(coderFactory.get(type = SupportedType.PrimitiveInt(isNullable = false))) {
-                            decode(
-                                coder = irGet(coderArgument),
-                                key = irString("__parcelize_hash"),
-                            )
-                        }
-                    )
-
-                +irIfThen(
-                    condition = irNotEquals(irGet(decodedHash), irInt(mainClassHash)),
-                    thenPart = irThrow(
-                        irCall(callee = symbols.illegalStateExceptionConstructor).apply {
-                            putValueArgument(0, irString("Signature mismatch for ${mainClass.render()}"))
-                        }
-                    ),
-                )
-
-                val nsMutableArray = createTmpVariable(irCall(symbols.nsMutableArrayConstructor))
-
-                if (mainClass.isObject) {
-                    +irCall(
-                        callee = symbols.nsMutableArrayType.requireClass().requireFunction(
-                            name = "addObject",
-                            valueParameterTypes = listOf(symbols.anyNType),
-                        ),
-                        dispatchReceiver = irGet(nsMutableArray),
-                        arguments = listOf(irGetObject(mainClass.symbol)),
-                    )
-                } else {
-                    val coder = irGet(coderArgument)
-                    val dataConstructorCall = mainClass.primaryConstructor!!.toIrConstructorCall()
-
-                    val valueParameterNames = mainClass.primaryConstructor!!.valueParameters.map { it.name }
-                    mainClass.properties
-                        .filter { it.name in valueParameterNames }
-                        .mapNotNull(IrProperty::backingField)
-                        .forEachIndexed { index, field ->
-                            try {
-                                addDecodeFieldStatement(
-                                    field = field,
-                                    index = index,
-                                    dataConstructorCall = dataConstructorCall,
-                                    coder = coder
-                                )
-                            } catch (e: Throwable) {
-                                throw IllegalStateException("Error generating decode statement for ${field.render()}", e)
-                            }
-                        }
-
-                    +irCall(
-                        callee = symbols.nsMutableArrayType.requireClass().requireFunction(
-                            name = "addObject",
-                            valueParameterTypes = listOf(symbols.anyNType),
-                        ),
-                        dispatchReceiver = irGet(nsMutableArray),
-                        arguments = listOf(dataConstructorCall),
+            val decodedHash =
+                with(coderFactory.get(type = SupportedType.PrimitiveInt(isNullable = false))) {
+                    decode(
+                        coder = irGet(coderArgument),
+                        key = irString("__parcelize_hash"),
                     )
                 }
 
-                +irReturn(irGet(nsMutableArray))
+            +irIfThen(
+                condition = irNotEquals(decodedHash, irInt(mainClassHash)),
+                thenPart = irThrow(
+                    irCallCompat(callee = symbols.illegalStateExceptionConstructor) {
+                        putValueArgument(0, irString("Signature mismatch for ${mainClass.render()}"))
+                    }
+                ),
+            )
+
+            val nsMutableArray = createTmpVariable(irCallCompat(symbols.nsMutableArrayConstructor))
+
+            if (mainClass.isObject) {
+                +irCallCompat(
+                    callee = symbols.nsMutableArrayType.requireClass().requireFunction(
+                        name = "addObject",
+                        valueParameterTypes = listOf(symbols.anyNType),
+                    ),
+                    dispatchReceiver = irGet(nsMutableArray),
+                    arguments = listOf(irGetObject(mainClass.symbol)),
+                )
+            } else {
+                val coder = irGet(coderArgument)
+                val dataConstructorCall =
+                    irCallCompat(mainClass.primaryConstructor!!.symbol) {
+                        val valueParameterNames = mainClass.primaryConstructor!!.valueParameters.map { it.name }
+                        mainClass.properties
+                            .filter { it.name in valueParameterNames }
+                            .mapNotNull(IrProperty::backingField)
+                            .forEachIndexed { index, field ->
+                                try {
+                                    addDecodeFieldStatement(
+                                        field = field,
+                                        index = index,
+                                        dataConstructorCall = this,
+                                        coder = coder
+                                    )
+                                } catch (e: Throwable) {
+                                    throw IllegalStateException("Error generating decode statement for ${field.render()}", e)
+                                }
+                            }
+                    }
+
+                +irCallCompat(
+                    callee = symbols.nsMutableArrayType.requireClass().requireFunction(
+                        name = "addObject",
+                        valueParameterTypes = listOf(symbols.anyNType),
+                    ),
+                    dispatchReceiver = irGet(nsMutableArray),
+                    arguments = listOf(dataConstructorCall),
+                )
             }
+
+            +irReturn(irGet(nsMutableArray))
         }
     }
 
-    private fun IrBlockBuilder.addDecodeFieldStatement(
+    private fun IrBlockBodyBuilder.addDecodeFieldStatement(
         field: IrField,
         index: Int,
-        dataConstructorCall: IrConstructorCall,
+        dataConstructorCall: IrFunctionAccessExpression,
         coder: IrExpression
     ) {
         dataConstructorCall.putValueArgument(
@@ -401,7 +405,7 @@ class ParcelizeClassLoweringPass(
         )
     }
 
-    // endregion
+// endregion
 
     private fun IrClass.generateCodingBody(codingClass: IrClass) {
         functions
