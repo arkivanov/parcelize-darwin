@@ -83,7 +83,7 @@ A complete example can be found here - [sample](https://github.com/arkivanov/par
 
 ### Writing Parcelable classes in commonMain
 
-The plugin can be used to write `Parcelable` classes in the `commonMain` source set. The recommended way is to use [Essenty] library, its [parcelable](https://github.com/arkivanov/Essenty#parcelable-and-parcelize) module bridges both Android and Darwin implementations in `commonMain`. There APIs for state preservation as well.
+The plugin can be used to write `Parcelable` classes in the `commonMain` source set. The recommended way is to use Essenty library, its [parcelable](https://github.com/arkivanov/Essenty#parcelable-and-parcelize) module bridges both Android and Darwin implementations in `commonMain`. There APIs for state preservation as well.
 
 #### Manual usage
 
