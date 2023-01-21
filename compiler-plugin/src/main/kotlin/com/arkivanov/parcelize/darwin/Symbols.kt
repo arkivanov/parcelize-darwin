@@ -9,7 +9,6 @@ import org.jetbrains.kotlin.ir.types.defaultType
 import org.jetbrains.kotlin.ir.types.makeNullable
 import org.jetbrains.kotlin.ir.util.constructors
 import org.jetbrains.kotlin.ir.util.getSimpleFunction
-import org.jetbrains.kotlin.name.FqName
 
 interface Symbols {
 
@@ -88,17 +87,17 @@ class DefaultSymbols(
     pluginContext: IrPluginContext,
 ) : Symbols {
 
-    private val parcelableClass: IrClassSymbol = pluginContext.referenceClass(parcelableName).require()
+    private val parcelableClass: IrClassSymbol = pluginContext.referenceClass(parcelableClassId).require()
 
-    override val nsObjectType: IrType = pluginContext.referenceClass(nsObjectName).require().defaultType
-    override val nsStringClass: IrClassSymbol = pluginContext.referenceClass(nsStringName).require()
-    override val nsLockType: IrType = pluginContext.referenceClass(nsLockName).require().defaultType
-    override val nsSecureCodingType: IrType = pluginContext.referenceClass(nsSecureCodingName).require().defaultType
-    override val nsSecureCodingMetaType: IrType = pluginContext.referenceClass(nsSecureCodingMetaName).require().defaultType
-    override val nsCoderType: IrType = pluginContext.referenceClass(nsCoderName).require().defaultType
-    override val objCClassType: IrType = pluginContext.referenceClass(objCClassName).require().defaultType
-    override val nsArrayType: IrType = pluginContext.referenceClass(nsArrayName).require().defaultType
-    override val nsMutableArrayType: IrType = pluginContext.referenceClass(nsMutableArrayName)!!.defaultType
+    override val nsObjectType: IrType = pluginContext.referenceClass(nsObjectClassId).require().defaultType
+    override val nsStringClass: IrClassSymbol = pluginContext.referenceClass(nsStringClassId).require()
+    override val nsLockType: IrType = pluginContext.referenceClass(nsLockClassId).require().defaultType
+    override val nsSecureCodingType: IrType = pluginContext.referenceClass(nsSecureCodingClassId).require().defaultType
+    override val nsSecureCodingMetaType: IrType = pluginContext.referenceClass(nsSecureCodingMetaClassId).require().defaultType
+    override val nsCoderType: IrType = pluginContext.referenceClass(nsCoderClassId).require().defaultType
+    override val objCClassType: IrType = pluginContext.referenceClass(objCClassClassId).require().defaultType
+    override val nsArrayType: IrType = pluginContext.referenceClass(nsArrayClassId).require().defaultType
+    override val nsMutableArrayType: IrType = pluginContext.referenceClass(nsMutableArrayClassId).require().defaultType
 
     override val parcelableType: IrType = parcelableClass.defaultType
     override val parcelableNType: IrType = parcelableType.makeNullable()
@@ -131,38 +130,38 @@ class DefaultSymbols(
     override val booleanNType: IrType = booleanType.makeNullable()
     override val stringType: IrType = pluginContext.irBuiltIns.stringType
     override val stringNType: IrType = stringType.makeNullable()
-    override val uLongType: IrType = pluginContext.referenceClass(FqName("kotlin.ULong")).require().defaultType
+    override val uLongType: IrType = pluginContext.referenceClass(ClassId(name = "kotlin.ULong")).require().defaultType
 
     override val arrayListConstructor: IrConstructorSymbol =
-        pluginContext.referenceClass(FqName("kotlin.collections.ArrayList")).require()
+        pluginContext.referenceClass(arrayListClassId).require()
             .owner
             .constructors
             .first { it.valueParameters.isEmpty() }
             .symbol
 
     override val hashSetConstructor: IrConstructorSymbol =
-        pluginContext.referenceClass(FqName("kotlin.collections.HashSet")).require()
+        pluginContext.referenceClass(hashSetClassId).require()
             .owner
             .constructors
             .first { it.valueParameters.isEmpty() }
             .symbol
 
     override val hashMapConstructor: IrConstructorSymbol =
-        pluginContext.referenceClass(FqName("kotlin.collections.HashMap")).require()
+        pluginContext.referenceClass(hashMapClassId).require()
             .owner
             .constructors
             .first { it.valueParameters.isEmpty() }
             .symbol
 
     override val nsMutableArrayConstructor: IrConstructorSymbol =
-        pluginContext.referenceClass(FqName("$packageFoundation.NSMutableArray")).require()
+        pluginContext.referenceClass(nsMutableArrayClassId).require()
             .owner
             .constructors
             .first { it.valueParameters.isEmpty() }
             .symbol
 
     override val illegalStateExceptionConstructor: IrConstructorSymbol =
-        pluginContext.referenceClass(FqName("kotlin.IllegalStateException")).require()
+        pluginContext.referenceClass(ClassId("kotlin.IllegalStateException")).require()
             .owner
             .constructors
             .first { it.valueParameters.size == 1 }
@@ -178,90 +177,90 @@ class DefaultSymbols(
 
     override val println: IrSimpleFunctionSymbol =
         pluginContext.referenceFunction(
-            name = "kotlin.io.println",
+            callableId = CallableId(packageName = "kotlin.io", callableName = "println"),
             valueParameterTypes = listOf(anyNType),
         )
 
     override val encodeInt: IrSimpleFunctionSymbol =
         pluginContext.referenceFunction(
-            name = "$packageFoundation.encodeInt32",
+            callableId = CallableId(packageName = packageFoundation, callableName = "encodeInt32"),
             extensionReceiverParameterType = nsCoderType,
             valueParameterTypes = listOf(intType, pluginContext.irBuiltIns.stringType),
         )
 
     override val decodeInt: IrSimpleFunctionSymbol =
         pluginContext.referenceFunction(
-            name = "$packageFoundation.decodeInt32ForKey",
+            callableId = CallableId(packageName = packageFoundation, callableName = "decodeInt32ForKey"),
             extensionReceiverParameterType = nsCoderType,
             valueParameterTypes = listOf(stringType),
         )
 
     override val encodeLong: IrSimpleFunctionSymbol =
         pluginContext.referenceFunction(
-            name = "$packageFoundation.encodeInt64",
+            callableId = CallableId(packageName = packageFoundation, callableName = "encodeInt64"),
             extensionReceiverParameterType = nsCoderType,
             valueParameterTypes = listOf(longType, stringType),
         )
 
     override val decodeLong: IrSimpleFunctionSymbol =
         pluginContext.referenceFunction(
-            name = "$packageFoundation.decodeInt64ForKey",
+            callableId = CallableId(packageName = packageFoundation, callableName = "decodeInt64ForKey"),
             extensionReceiverParameterType = nsCoderType,
             valueParameterTypes = listOf(stringType),
         )
 
     override val encodeFloat: IrSimpleFunctionSymbol =
         pluginContext.referenceFunction(
-            name = "$packageFoundation.encodeFloat",
+            callableId = CallableId(packageName = packageFoundation, callableName = "encodeFloat"),
             extensionReceiverParameterType = nsCoderType,
             valueParameterTypes = listOf(floatType, stringType),
         )
 
     override val decodeFloat: IrSimpleFunctionSymbol =
         pluginContext.referenceFunction(
-            name = "$packageFoundation.decodeFloatForKey",
+            callableId = CallableId(packageName = packageFoundation, callableName = "decodeFloatForKey"),
             extensionReceiverParameterType = nsCoderType,
             valueParameterTypes = listOf(stringType),
         )
 
     override val encodeDouble: IrSimpleFunctionSymbol =
         pluginContext.referenceFunction(
-            name = "$packageFoundation.encodeDouble",
+            callableId = CallableId(packageName = packageFoundation, callableName = "encodeDouble"),
             extensionReceiverParameterType = nsCoderType,
             valueParameterTypes = listOf(doubleType, stringType),
         )
 
     override val decodeDouble: IrSimpleFunctionSymbol =
         pluginContext.referenceFunction(
-            name = "$packageFoundation.decodeDoubleForKey",
+            callableId = CallableId(packageName = packageFoundation, callableName = "decodeDoubleForKey"),
             extensionReceiverParameterType = nsCoderType,
             valueParameterTypes = listOf(stringType),
         )
 
     override val encodeBoolean: IrSimpleFunctionSymbol =
         pluginContext.referenceFunction(
-            name = "$packageFoundation.encodeBool",
+            callableId = CallableId(packageName = packageFoundation, callableName = "encodeBool"),
             extensionReceiverParameterType = nsCoderType,
             valueParameterTypes = listOf(booleanType, pluginContext.irBuiltIns.stringType),
         )
 
     override val decodeBoolean: IrSimpleFunctionSymbol =
         pluginContext.referenceFunction(
-            name = "$packageFoundation.decodeBoolForKey",
+            callableId = CallableId(packageName = packageFoundation, callableName = "decodeBoolForKey"),
             extensionReceiverParameterType = nsCoderType,
             valueParameterTypes = listOf(stringType),
         )
 
     override val encodeObject: IrSimpleFunctionSymbol =
         pluginContext.referenceFunction(
-            name = "$packageFoundation.encodeObject",
+            callableId = CallableId(packageName = packageFoundation, callableName = "encodeObject"),
             extensionReceiverParameterType = nsCoderType,
             valueParameterTypes = listOf(pluginContext.irBuiltIns.anyNType, stringType),
         )
 
     override val decodeObject: IrSimpleFunctionSymbol =
         pluginContext.referenceFunction(
-            name = "$packageFoundation.decodeObjectOfClass",
+            callableId = CallableId(packageName = packageFoundation, callableName = "decodeObjectOfClass"),
             extensionReceiverParameterType = nsCoderType,
             valueParameterTypes = listOf(objCClassType, stringType),
         )

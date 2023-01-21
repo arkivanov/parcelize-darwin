@@ -12,8 +12,6 @@ setupPublication()
 
 dependencies {
     compileOnly(deps.kotlin.kotlinCompilerEmbeddable)
-    kapt(deps.google.autoService)
-    compileOnly(deps.google.autoServiceAnnotations)
 }
 
 java {

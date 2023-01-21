@@ -44,25 +44,34 @@ import org.jetbrains.kotlin.ir.util.primaryConstructor
 import org.jetbrains.kotlin.ir.util.properties
 import org.jetbrains.kotlin.ir.util.render
 import org.jetbrains.kotlin.ir.util.superTypes
+import org.jetbrains.kotlin.name.CallableId
+import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.types.Variance
 
-const val packageFoundation: String = "platform.Foundation"
-const val packageRuntime: String = "com.arkivanov.parcelize.darwin"
+val packageFoundation: FqName = FqName("platform.Foundation")
+val packageDarwin: FqName = FqName("platform.darwin")
+val packageRuntime: FqName = FqName("com.arkivanov.parcelize.darwin")
+val packageCinterop: FqName = FqName("kotlinx.cinterop")
+val packageCollections: FqName = FqName("kotlin.collections")
 
 val parcelizeName = FqName("$packageRuntime.Parcelize")
-val parcelableName = FqName("$packageRuntime.Parcelable")
-val nsSecureCodingName = FqName("$packageFoundation.NSSecureCodingProtocol")
-val nsSecureCodingMetaName = FqName("$packageFoundation.NSSecureCodingProtocolMeta")
-val nsCoderName = FqName("$packageFoundation.NSCoder")
-val nsObjectName = FqName("platform.darwin.NSObject")
-val nsStringName = FqName("$packageFoundation.NSString")
-val nsLockName = FqName("$packageFoundation.NSLock")
-val nsArrayName = FqName("$packageFoundation.NSArray")
-val nsMutableArrayName = FqName("$packageFoundation.NSMutableArray")
-val objCClassName = FqName("kotlinx.cinterop.ObjCClass")
-val exportObjCClassName = FqName("kotlinx.cinterop.ExportObjCClass")
+val parcelableClassId = ClassId(packageName = packageRuntime, className = "Parcelable")
+val parcelableName = parcelableClassId.asSingleFqName()
+val nsSecureCodingClassId = ClassId(packageName = packageFoundation, className = "NSSecureCodingProtocol")
+val nsSecureCodingMetaClassId = ClassId(packageName = packageFoundation, className = "NSSecureCodingProtocolMeta")
+val nsCoderClassId = ClassId(packageName = packageFoundation, className = "NSCoder")
+val nsObjectClassId = ClassId(packageName = packageDarwin, className = "NSObject")
+val nsStringClassId = ClassId(packageName = packageFoundation, className = "NSString")
+val nsLockClassId = ClassId(packageName = packageFoundation, className = "NSLock")
+val nsArrayClassId = ClassId(packageName = packageFoundation, className = "NSArray")
+val nsMutableArrayClassId = ClassId(packageName = packageFoundation, className = "NSMutableArray")
+val objCClassClassId = ClassId(packageName = packageCinterop, className = "ObjCClass")
+val exportObjCClassClassId = ClassId(packageName = packageCinterop, className = "ExportObjCClass")
+val arrayListClassId = ClassId(packageName = packageCollections, className = "ArrayList")
+val hashSetClassId = ClassId(packageName = packageCollections, className = "HashSet")
+val hashMapClassId = ClassId(packageName = packageCollections, className = "HashMap")
 val codingName = Name.identifier("coding")
 
 fun MessageCollector.log(text: String) {
@@ -76,6 +85,24 @@ fun IrType.isParcelable(): Boolean =
     (classFqName == parcelableName) ||
         superTypes().any { (it.classFqName == parcelableName) || it.isParcelable() }
 
+fun CallableId(packageName: String, callableName: String): CallableId =
+    CallableId(
+        packageName = FqName(packageName),
+        callableName = callableName,
+    )
+
+fun CallableId(packageName: FqName, callableName: String): CallableId =
+    CallableId(
+        packageName = packageName,
+        callableName = Name.identifier(callableName),
+    )
+
+fun ClassId(packageName: FqName, className: String): ClassId =
+    ClassId(packageName, Name.identifier(className))
+
+fun ClassId(name: String): ClassId =
+    ClassId.fromString(name)
+
 fun IrFunction.setBody(context: IrPluginContext, body: IrBlockBodyBuilder.() -> Unit): IrBlockBody =
     DeclarationIrBuilder(context, symbol)
         .irBlockBody(body = body)
@@ -88,18 +115,18 @@ fun IrConstructor.toIrConstructorCall(): IrConstructorCall =
     )
 
 fun IrClass.getFullCapitalizedName(): String {
-    var str = name.identifier.capitalize()
+    var str = name.identifier.replaceFirstChar(Char::uppercase)
 
     var cls: IrClass? = parentClassOrNull
     while (cls != null) {
-        str = "${cls.name.identifier.capitalize()}_$str"
+        str = "${cls.name.identifier.replaceFirstChar(Char::uppercase)}_$str"
         cls = cls.parentClassOrNull
     }
 
     val prefix: String? =
         packageFqName
             ?.pathSegments()
-            ?.joinToString(separator = "_") { it.identifier.capitalize() }
+            ?.joinToString(separator = "_") { it.identifier.replaceFirstChar(Char::uppercase) }
 
     if (prefix != null) {
         str = "${prefix}_$str"
@@ -121,16 +148,16 @@ fun IrType.requireClass(): IrClass =
     requireNotNull(getClass()) { "Class is not found for type: ${render()}" }
 
 fun IrPluginContext.referenceFunction(
-    name: String,
+    callableId: CallableId,
     extensionReceiverParameterType: IrType? = null,
     valueParameterTypes: List<IrType> = emptyList(),
 ): IrSimpleFunctionSymbol =
     requireNotNull(
-        referenceFunctions(FqName(name)).firstOrNull { f ->
+        referenceFunctions(callableId).firstOrNull { f ->
             (f.owner.extensionReceiverParameter?.type == extensionReceiverParameterType) &&
                 (f.owner.valueParameters.map { it.type.classFqName } == valueParameterTypes.map { it.classFqName })
         }
-    ) { "Function $name not found" }
+    ) { "Function $callableId not found" }
 
 fun IrBuilderWithScope.irCallCompat(
     callee: IrSimpleFunctionSymbol,

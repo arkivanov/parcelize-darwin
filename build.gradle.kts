@@ -6,8 +6,8 @@ import com.arkivanov.gradle.tvosCompat
 import com.arkivanov.gradle.watchosCompat
 
 buildscript {
-    extra.set("kotlinVersion", "1.7.21")
-    extra.set("pluginVersion", "0.1.0")
+    extra.set("kotlinVersion", deps.versions.kotlin.get())
+    extra.set("pluginVersion", deps.versions.plugin.get())
 
     repositories {
         maven("https://plugins.gradle.org/m2/")

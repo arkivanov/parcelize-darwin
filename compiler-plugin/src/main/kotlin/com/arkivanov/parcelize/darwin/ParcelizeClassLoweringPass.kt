@@ -50,7 +50,6 @@ import org.jetbrains.kotlin.ir.util.constructors
 import org.jetbrains.kotlin.ir.util.copyTo
 import org.jetbrains.kotlin.ir.util.createImplicitParameterDeclarationWithWrappedDescriptor
 import org.jetbrains.kotlin.ir.util.defaultType
-import org.jetbrains.kotlin.ir.util.dump
 import org.jetbrains.kotlin.ir.util.functions
 import org.jetbrains.kotlin.ir.util.isObject
 import org.jetbrains.kotlin.ir.util.primaryConstructor
@@ -164,7 +163,7 @@ class ParcelizeClassLoweringPass(
 
     private fun getExportObjCClassAnnotationCall(name: String = ""): IrConstructorCall =
         context
-            .referenceConstructors(exportObjCClassName)
+            .referenceConstructors(exportObjCClassClassId)
             .map(IrConstructorSymbol::owner)
             .single { it.valueParameters.map(IrValueParameter::type) == listOf(symbols.stringType) }
             .toIrConstructorCall()

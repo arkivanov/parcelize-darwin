@@ -1,10 +1,14 @@
 package com.arkivanov.parcelize.darwin
 
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
-import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor
+import org.jetbrains.kotlin.descriptors.ClassDescriptor
+import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
+import org.jetbrains.kotlin.descriptors.Modality
+import org.jetbrains.kotlin.descriptors.SimpleFunctionDescriptor
 import org.jetbrains.kotlin.descriptors.annotations.Annotations
+import org.jetbrains.kotlin.descriptors.findClassAcrossModuleDependencies
 import org.jetbrains.kotlin.descriptors.impl.SimpleFunctionDescriptorImpl
-import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.descriptorUtil.module
@@ -50,7 +54,7 @@ class ParcelizeResolveExtension(
                 emptyList(),
                 emptyList(),
                 emptyList(),
-                thisDescriptor.module.findClassAcrossModuleDependencies(ClassId.topLevel(nsSecureCodingName))!!.defaultType,
+                thisDescriptor.module.findClassAcrossModuleDependencies(nsSecureCodingClassId).require().defaultType,
                 Modality.FINAL,
                 DescriptorVisibilities.PUBLIC
             )
