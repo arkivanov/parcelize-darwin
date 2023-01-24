@@ -81,9 +81,11 @@ data class UserGroup(
 
 A complete example can be found here - [sample](https://github.com/arkivanov/parcelize-darwin/tree/master/sample).
 
+An example of the generated code can be found here - [SomeParcelable.kt](https://github.com/arkivanov/parcelize-darwin/blob/master/runtime/src/darwinTest/kotlin/com/arkivanov/parcelize/darwin/SomeParcelable.kt).
+
 ### Writing Parcelable classes in commonMain
 
-The plugin can be used to write `Parcelable` classes in the `commonMain` source set. The recommended way is to use Essenty library, its [parcelable](https://github.com/arkivanov/Essenty#parcelable-and-parcelize) module bridges both Android and Darwin implementations in `commonMain`. There APIs for state preservation as well.
+The plugin can be used to write `Parcelable` classes in the `commonMain` source set. The recommended way is to use Essenty library, its [parcelable](https://github.com/arkivanov/Essenty#parcelable-and-parcelize) module bridges both Android and Darwin implementations in `commonMain`. There are APIs for state preservation as well.
 
 #### Manual usage
 
