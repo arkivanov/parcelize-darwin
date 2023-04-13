@@ -98,6 +98,7 @@ class ParcelizeClassLoweringPass(
         )
 
         val codingCompanionClass = codingClass.addCodingCompanionObject()
+        codingCompanionClass.addSimpleDelegatingPrimaryConstructor()
         codingCompanionClass.addSupportsSecureCodingFunction()
 
         irClass.generateCodingBody(codingClass)

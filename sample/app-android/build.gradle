@@ -2,10 +2,12 @@ plugins.apply('com.android.application')
 plugins.apply('kotlin-android')
 
 android {
-    compileSdkVersion 30
+    namespace "com.arkivanov.parcelize.sample.app"
+
+    compileSdkVersion 33
 
     defaultConfig {
-        targetSdkVersion 30
+        targetSdkVersion 33
         minSdkVersion 28
 
         applicationId "com.arkivanov.parcelize.sample.app"
@@ -19,6 +21,6 @@ android {
 }
 
 dependencies {
-    implementation "androidx.appcompat:appcompat:1.2.0"
+    implementation "androidx.appcompat:appcompat:1.6.1"
     implementation project(':shared')
 }

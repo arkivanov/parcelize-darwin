@@ -8,10 +8,12 @@ plugins {
 }
 
 android {
-    compileSdkVersion 30
+    namespace "com.arkivanov.parcelize.sample"
+
+    compileSdkVersion 33
 
     defaultConfig {
-        targetSdkVersion 30
+        targetSdkVersion 33
         minSdkVersion 28
     }
 }

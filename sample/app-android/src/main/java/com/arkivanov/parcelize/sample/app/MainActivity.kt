@@ -16,6 +16,7 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(R.layout.main_activity)
 
+        @Suppress("DEPRECATION")
         someLogic = SomeLogic(savedInstanceState?.getParcelable(KEY_MAIN_SCREEN_STATE))
 
         valueText = requireViewById(R.id.text_value)
