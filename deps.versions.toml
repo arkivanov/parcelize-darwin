@@ -1,6 +1,6 @@
 [versions]
 
-plugin = "0.1.4"
+plugin = "0.1.5"
 kotlin = "1.9.0"
 buildConfigGradlePlugin = "4.1.2"
 
