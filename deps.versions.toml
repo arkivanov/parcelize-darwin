@@ -1,8 +1,8 @@
 [versions]
 
 plugin = "0.1.4"
-kotlin = "1.8.20"
-buildConfigGradlePlugin = "3.1.0"
+kotlin = "1.9.0"
+buildConfigGradlePlugin = "4.1.2"
 
 [libraries]
 
@@ -10,4 +10,4 @@ kotlin-kotlinGradlePlug = { group = "org.jetbrains.kotlin", name = "kotlin-gradl
 kotlin-kotlinGradlePluginApi = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin-api", version.ref = "kotlin" }
 kotlin-kotlinCompilerEmbeddable = { group = "org.jetbrains.kotlin", name = "kotlin-compiler-embeddable", version.ref = "kotlin" }
 
-gmazzo-buildConfigPlug = { group = "com.github.gmazzo", name = "gradle-buildconfig-plugin", version.ref = "buildConfigGradlePlugin" }
+gmazzo-buildConfigPlug = { group = "com.github.gmazzo.buildconfig", name = "plugin", version.ref = "buildConfigGradlePlugin" }
