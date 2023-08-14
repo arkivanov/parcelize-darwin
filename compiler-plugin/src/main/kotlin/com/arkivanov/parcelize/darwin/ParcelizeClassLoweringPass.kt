@@ -290,7 +290,7 @@ class ParcelizeClassLoweringPass(
     }
 
     private fun IrBlockBuilder.addEncodeFieldStatement(field: IrField, data: IrExpression, coder: IrExpression) {
-        +with(coderFactory.get(field.type)) {
+        +with(coderFactory.get(field)) {
             encode(
                 coder = coder,
                 value = irGetField(data, field),
@@ -396,7 +396,7 @@ class ParcelizeClassLoweringPass(
     ) {
         dataConstructorCall.putValueArgument(
             index = index,
-            valueArgument = with(coderFactory.get(field.type)) {
+            valueArgument = with(coderFactory.get(field)) {
                 decode(
                     coder = coder,
                     key = irString(field.name.identifier),

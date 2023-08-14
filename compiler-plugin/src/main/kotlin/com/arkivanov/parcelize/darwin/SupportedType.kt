@@ -1,9 +1,12 @@
 package com.arkivanov.parcelize.darwin
 
 import org.jetbrains.kotlin.backend.jvm.ir.erasedUpperBound
+import org.jetbrains.kotlin.ir.backend.js.utils.typeArguments
 import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.typeOrNull
 import org.jetbrains.kotlin.ir.util.defaultType
+import org.jetbrains.kotlin.ir.util.getAnnotation
+import org.jetbrains.kotlin.ir.util.hasAnnotation
 import org.jetbrains.kotlin.ir.util.isEnumClass
 import org.jetbrains.kotlin.ir.util.render
 
@@ -17,6 +20,7 @@ sealed interface SupportedType {
     data class PrimitiveFloat(val isNullable: Boolean) : SupportedType
     data class PrimitiveDouble(val isNullable: Boolean) : SupportedType
     data class PrimitiveBoolean(val isNullable: Boolean) : SupportedType
+    data class Custom(val type: IrType, val parcelerType: IrType) : SupportedType
     object String : SupportedType
     data class Enum(val type: IrType) : SupportedType
     object Parcelable : SupportedType
@@ -28,58 +32,76 @@ sealed interface SupportedType {
     data class MutableMap(val keyType: SupportedType, val valueType: SupportedType) : SupportedType
 }
 
-fun IrType.toSupportedType(symbols: Symbols): SupportedType =
-    when {
-        this == symbols.intType -> SupportedType.PrimitiveInt(isNullable = false)
-        this == symbols.intNType -> SupportedType.PrimitiveInt(isNullable = true)
-        this == symbols.longType -> SupportedType.PrimitiveLong(isNullable = false)
-        this == symbols.longNType -> SupportedType.PrimitiveLong(isNullable = true)
-        this == symbols.shortType -> SupportedType.PrimitiveShort(isNullable = false)
-        this == symbols.shortNType -> SupportedType.PrimitiveShort(isNullable = true)
-        this == symbols.byteType -> SupportedType.PrimitiveByte(isNullable = false)
-        this == symbols.byteNType -> SupportedType.PrimitiveByte(isNullable = true)
-        this == symbols.charType -> SupportedType.PrimitiveChar(isNullable = false)
-        this == symbols.charNType -> SupportedType.PrimitiveChar(isNullable = true)
-        this == symbols.floatType -> SupportedType.PrimitiveFloat(isNullable = false)
-        this == symbols.floatNType -> SupportedType.PrimitiveFloat(isNullable = true)
-        this == symbols.doubleType -> SupportedType.PrimitiveDouble(isNullable = false)
-        this == symbols.doubleNType -> SupportedType.PrimitiveDouble(isNullable = true)
-        this == symbols.booleanType -> SupportedType.PrimitiveBoolean(isNullable = false)
-        this == symbols.booleanNType -> SupportedType.PrimitiveBoolean(isNullable = true)
-        (this == symbols.stringType) || (this == symbols.stringNType) -> SupportedType.String
-        erasedUpperBound.isEnumClass -> SupportedType.Enum(type = this)
-        isParcelable() -> SupportedType.Parcelable
 
-        erasedUpperBoundType == symbols.listType ->
-            SupportedType.List(itemType = getTypeArgument(0).toSupportedType(symbols))
+class IrTypeToSupportedTypeMapper(
+    private val symbols: Symbols,
+    private val typeParcelers: Map<IrType, IrType>,
+) {
+    fun map(type: IrType): SupportedType =
+        when {
+            type == symbols.intType -> SupportedType.PrimitiveInt(isNullable = false)
+            type == symbols.intNType -> SupportedType.PrimitiveInt(isNullable = true)
+            type == symbols.longType -> SupportedType.PrimitiveLong(isNullable = false)
+            type == symbols.longNType -> SupportedType.PrimitiveLong(isNullable = true)
+            type == symbols.shortType -> SupportedType.PrimitiveShort(isNullable = false)
+            type == symbols.shortNType -> SupportedType.PrimitiveShort(isNullable = true)
+            type == symbols.byteType -> SupportedType.PrimitiveByte(isNullable = false)
+            type == symbols.byteNType -> SupportedType.PrimitiveByte(isNullable = true)
+            type == symbols.charType -> SupportedType.PrimitiveChar(isNullable = false)
+            type == symbols.charNType -> SupportedType.PrimitiveChar(isNullable = true)
+            type == symbols.floatType -> SupportedType.PrimitiveFloat(isNullable = false)
+            type == symbols.floatNType -> SupportedType.PrimitiveFloat(isNullable = true)
+            type == symbols.doubleType -> SupportedType.PrimitiveDouble(isNullable = false)
+            type == symbols.doubleNType -> SupportedType.PrimitiveDouble(isNullable = true)
+            type == symbols.booleanType -> SupportedType.PrimitiveBoolean(isNullable = false)
+            type == symbols.booleanNType -> SupportedType.PrimitiveBoolean(isNullable = true)
 
-        erasedUpperBoundType == symbols.mutableListType ->
-            SupportedType.MutableList(itemType = getTypeArgument(0).toSupportedType(symbols))
+            type.hasAnnotation(writeWithName) ->
+                SupportedType.Custom(
+                    type = type,
+                    parcelerType = requireNotNull(type.getAnnotation(writeWithName)?.typeArguments?.first()),
+                )
 
-        erasedUpperBoundType == symbols.setType ->
-            SupportedType.Set(itemType = getTypeArgument(0).toSupportedType(symbols))
+            type in typeParcelers ->
+                SupportedType.Custom(
+                    type = type,
+                    parcelerType = typeParcelers.getValue(type),
+                )
 
-        erasedUpperBoundType == symbols.mutableSetType ->
-            SupportedType.MutableSet(itemType = getTypeArgument(0).toSupportedType(symbols))
+            (type == symbols.stringType) || (type == symbols.stringNType) -> SupportedType.String
+            type.erasedUpperBound.isEnumClass -> SupportedType.Enum(type = type)
+            type.isParcelable() -> SupportedType.Parcelable
 
-        erasedUpperBoundType == symbols.mapType ->
-            SupportedType.Map(
-                keyType = getTypeArgument(0).toSupportedType(symbols),
-                valueType = getTypeArgument(1).toSupportedType(symbols),
-            )
+            type.erasedUpperBoundType == symbols.listType ->
+                SupportedType.List(itemType = map(type.getTypeArgument(0)))
 
-        erasedUpperBoundType == symbols.mutableMapType ->
-            SupportedType.MutableMap(
-                keyType = getTypeArgument(0).toSupportedType(symbols),
-                valueType = getTypeArgument(1).toSupportedType(symbols),
-            )
+            type.erasedUpperBoundType == symbols.mutableListType ->
+                SupportedType.MutableList(itemType = map(type.getTypeArgument(0)))
 
-        else -> error("Unsupported type: ${render()}")
-    }
+            type.erasedUpperBoundType == symbols.setType ->
+                SupportedType.Set(itemType = map(type.getTypeArgument(0)))
 
-private fun IrType.getTypeArgument(index: Int): IrType =
-    asIrSimpleType().arguments[index].typeOrNull!!
+            type.erasedUpperBoundType == symbols.mutableSetType ->
+                SupportedType.MutableSet(itemType = map(type.getTypeArgument(0)))
 
-private val IrType.erasedUpperBoundType: IrType
-    get() = erasedUpperBound.defaultType
+            type.erasedUpperBoundType == symbols.mapType ->
+                SupportedType.Map(
+                    keyType = map(type.getTypeArgument(0)),
+                    valueType = map(type.getTypeArgument(1)),
+                )
 
+            type.erasedUpperBoundType == symbols.mutableMapType ->
+                SupportedType.MutableMap(
+                    keyType = map(type.getTypeArgument(0)),
+                    valueType = map(type.getTypeArgument(1)),
+                )
+
+            else -> error("Unsupported type: ${type.render()}")
+        }
+
+    private fun IrType.getTypeArgument(index: Int): IrType =
+        asIrSimpleType().arguments[index].typeOrNull!!
+
+    private val IrType.erasedUpperBoundType: IrType
+        get() = erasedUpperBound.defaultType
+}

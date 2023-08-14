@@ -59,14 +59,19 @@ val packageCollections: FqName = FqName("kotlin.collections")
 val parcelizeName = FqName("$packageRuntime.Parcelize")
 val parcelableClassId = ClassId(packageName = packageRuntime, className = "Parcelable")
 val parcelableName = parcelableClassId.asSingleFqName()
+val typeParcelerName = FqName("$packageRuntime.TypeParceler")
+val writeWithName = FqName("$packageRuntime.WriteWith")
 val nsSecureCodingClassId = ClassId(packageName = packageFoundation, className = "NSSecureCodingProtocol")
 val nsSecureCodingMetaClassId = ClassId(packageName = packageFoundation, className = "NSSecureCodingProtocolMeta")
 val nsCoderClassId = ClassId(packageName = packageFoundation, className = "NSCoder")
 val nsObjectClassId = ClassId(packageName = packageDarwin, className = "NSObject")
 val nsStringClassId = ClassId(packageName = packageFoundation, className = "NSString")
+val nsDataClassId = ClassId(packageName = packageFoundation, className = "NSData")
 val nsLockClassId = ClassId(packageName = packageFoundation, className = "NSLock")
 val nsArrayClassId = ClassId(packageName = packageFoundation, className = "NSArray")
 val nsMutableArrayClassId = ClassId(packageName = packageFoundation, className = "NSMutableArray")
+val nsKeyedArchiverClassId = ClassId(packageName = packageFoundation, className = "NSKeyedArchiver")
+val nsKeyedUnarchiverClassId = ClassId(packageName = packageFoundation, className = "NSKeyedUnarchiver")
 val objCClassClassId = ClassId(packageName = packageCinterop, className = "ObjCClass")
 val exportObjCClassClassId = ClassId(packageName = packageCinterop, className = "ExportObjCClass")
 val arrayListClassId = ClassId(packageName = packageCollections, className = "ArrayList")
@@ -94,6 +99,12 @@ fun CallableId(packageName: String, callableName: String): CallableId =
 fun CallableId(packageName: FqName, callableName: String): CallableId =
     CallableId(
         packageName = packageName,
+        callableName = Name.identifier(callableName),
+    )
+
+fun CallableId(classId: ClassId, callableName: String): CallableId =
+    CallableId(
+        classId = classId,
         callableName = Name.identifier(callableName),
     )
 
@@ -138,10 +149,13 @@ fun IrClass.getFullCapitalizedName(): String {
 fun IrClass.requireFunction(
     name: String,
     valueParameterTypes: List<IrType>? = null,
+    extensionReceiverParameterType: IrType? = null
 ): IrSimpleFunctionSymbol =
     functions.first { f ->
         (f.name.asString() == name) &&
-            ((valueParameterTypes == null) || (f.valueParameters.map { it.type.classFqName } == valueParameterTypes.map { it.classFqName }))
+            ((valueParameterTypes == null) ||
+                (f.valueParameters.map { it.type.classFqName } == valueParameterTypes.map { it.classFqName })) &&
+            (f.extensionReceiverParameter?.type?.classFqName == extensionReceiverParameterType?.classFqName)
     }.symbol
 
 fun IrType.requireClass(): IrClass =
@@ -178,10 +192,16 @@ fun IrBuilderWithScope.irCallCompat(
 
 fun IrBuilderWithScope.irCallCompat(
     callee: IrConstructorSymbol,
+    arguments: List<IrExpression> = emptyList(), // FIXME: reuse?
     block: IrConstructorCall.() -> Unit = {},
 ): IrExpression =
     irBlock(startOffset = SYNTHETIC_OFFSET, endOffset = SYNTHETIC_OFFSET) {
-        +irCall(callee, callee.owner.returnType).apply(block)
+        +irCall(callee, callee.owner.returnType).apply {
+            arguments.forEachIndexed { index, argument ->
+                putValueArgument(index, argument)
+            }
+            block()
+        }
     }
 
 fun IrBuilderWithScope.irCallCompat(

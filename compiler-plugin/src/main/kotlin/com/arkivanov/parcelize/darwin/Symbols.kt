@@ -14,6 +14,7 @@ interface Symbols {
 
     val nsObjectType: IrType
     val nsStringClass: IrClassSymbol
+    val nsDataClass: IrClassSymbol
     val nsLockType: IrType
     val nsSecureCodingType: IrType
     val nsSecureCodingMetaType: IrType
@@ -59,6 +60,8 @@ interface Symbols {
     val hashSetConstructor: IrConstructorSymbol
     val hashMapConstructor: IrConstructorSymbol
     val nsMutableArrayConstructor: IrConstructorSymbol
+    val nsKeyedArchiverConstructor: IrConstructorSymbol
+    val nsKeyedUnarchiverConstructor: IrConstructorSymbol
     val illegalStateExceptionConstructor: IrConstructorSymbol
     val shortToInt: IrSimpleFunctionSymbol
     val intToShort: IrSimpleFunctionSymbol
@@ -69,6 +72,8 @@ interface Symbols {
     val getCoding: IrSimpleFunctionSymbol
     val println: IrSimpleFunctionSymbol
 
+    val encodedData: IrSimpleFunctionSymbol
+    val setRequireSecureCoding: IrSimpleFunctionSymbol
     val encodeInt: IrSimpleFunctionSymbol
     val decodeInt: IrSimpleFunctionSymbol
     val encodeLong: IrSimpleFunctionSymbol
@@ -84,13 +89,14 @@ interface Symbols {
 }
 
 class DefaultSymbols(
-    pluginContext: IrPluginContext,
+    private val pluginContext: IrPluginContext,
 ) : Symbols {
 
     private val parcelableClass: IrClassSymbol = pluginContext.referenceClass(parcelableClassId).require()
 
     override val nsObjectType: IrType = pluginContext.referenceClass(nsObjectClassId).require().defaultType
     override val nsStringClass: IrClassSymbol = pluginContext.referenceClass(nsStringClassId).require()
+    override val nsDataClass: IrClassSymbol = pluginContext.referenceClass(nsDataClassId).require()
     override val nsLockType: IrType = pluginContext.referenceClass(nsLockClassId).require().defaultType
     override val nsSecureCodingType: IrType = pluginContext.referenceClass(nsSecureCodingClassId).require().defaultType
     override val nsSecureCodingMetaType: IrType = pluginContext.referenceClass(nsSecureCodingMetaClassId).require().defaultType
@@ -160,6 +166,20 @@ class DefaultSymbols(
             .first { it.valueParameters.isEmpty() }
             .symbol
 
+    override val nsKeyedArchiverConstructor: IrConstructorSymbol =
+        pluginContext.referenceClass(nsKeyedArchiverClassId).require()
+            .owner
+            .constructors
+            .first { it.valueParameters.size == 1 }
+            .symbol
+
+    override val nsKeyedUnarchiverConstructor: IrConstructorSymbol =
+        pluginContext.referenceClass(nsKeyedUnarchiverClassId).require()
+            .owner
+            .constructors
+            .first { it.valueParameters.size == 1 }
+            .symbol
+
     override val illegalStateExceptionConstructor: IrConstructorSymbol =
         pluginContext.referenceClass(ClassId("kotlin.IllegalStateException")).require()
             .owner
@@ -179,6 +199,18 @@ class DefaultSymbols(
         pluginContext.referenceFunction(
             callableId = CallableId(packageName = "kotlin.io", callableName = "println"),
             valueParameterTypes = listOf(anyNType),
+        )
+
+    override val encodedData: IrSimpleFunctionSymbol =
+        pluginContext.referenceFunction(
+            callableId = CallableId(classId = nsKeyedArchiverClassId, callableName = "encodedData"),
+            valueParameterTypes = listOf(),
+        )
+
+    override val setRequireSecureCoding: IrSimpleFunctionSymbol =
+        pluginContext.referenceFunction(
+            callableId = CallableId(classId = nsKeyedUnarchiverClassId, callableName = "setRequiresSecureCoding"),
+            valueParameterTypes = listOf(booleanType),
         )
 
     override val encodeInt: IrSimpleFunctionSymbol =

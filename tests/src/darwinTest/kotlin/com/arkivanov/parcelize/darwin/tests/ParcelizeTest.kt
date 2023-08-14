@@ -1,16 +1,17 @@
 package com.arkivanov.parcelize.darwin.tests
 
 import com.arkivanov.parcelize.darwin.Parcelable
+import com.arkivanov.parcelize.darwin.Parceler
 import com.arkivanov.parcelize.darwin.Parcelize
+import com.arkivanov.parcelize.darwin.TypeParceler
+import com.arkivanov.parcelize.darwin.WriteWith
 import com.arkivanov.parcelize.darwin.decodeParcelable
 import com.arkivanov.parcelize.darwin.encodeParcelable
-import kotlinx.cinterop.Arena
-import kotlinx.cinterop.readBytes
-import kotlinx.cinterop.toCValues
-import platform.Foundation.NSData
+import platform.Foundation.NSCoder
 import platform.Foundation.NSKeyedArchiver
 import platform.Foundation.NSKeyedUnarchiver
-import platform.Foundation.dataWithBytes
+import platform.Foundation.decodeInt32ForKey
+import platform.Foundation.encodeInt32
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -59,6 +60,8 @@ class ParcelizeTest {
                 enum1 = SomeEnum.A,
                 enum2 = SomeEnum.B,
                 enum3 = null,
+                notParcelable1 = NotParcelable1(value = 5),
+                notParcelable2 = NotParcelable2(value = 10),
 
                 intList1 = listOf(1, 2),
                 intList2 = listOf(3, 4),
@@ -509,6 +512,7 @@ class ParcelizeTest {
         A, B
     }
 
+    @TypeParceler<NotParcelable2, NotParcelable2Parceler>
     @Parcelize
     private data class Some(
         val i1: Int,
@@ -550,6 +554,8 @@ class ParcelizeTest {
         val enum1: SomeEnum,
         val enum2: SomeEnum?,
         val enum3: SomeEnum?,
+        val notParcelable1: @WriteWith<NotParcelable1Parceler> NotParcelable1,
+        val notParcelable2: NotParcelable2,
 
         val intList1: List<Int>,
         val intList2: List<Int>?,
@@ -978,4 +984,30 @@ class ParcelizeTest {
     private interface SomeInterface : Parcelable
 
     private abstract class SomeClass : Parcelable
+
+    private data class NotParcelable1(
+        val value: Int,
+    )
+
+    private object NotParcelable1Parceler : Parceler<NotParcelable1> {
+        override fun create(coder: NSCoder): NotParcelable1 =
+            NotParcelable1(value = coder.decodeInt32ForKey(key = "value"))
+
+        override fun NotParcelable1.write(coder: NSCoder) {
+            coder.encodeInt32(value = value, forKey = "value")
+        }
+    }
+
+    private data class NotParcelable2(
+        val value: Int,
+    )
+
+    private object NotParcelable2Parceler : Parceler<NotParcelable2> {
+        override fun create(coder: NSCoder): NotParcelable2 =
+            NotParcelable2(value = coder.decodeInt32ForKey(key = "value"))
+
+        override fun NotParcelable2.write(coder: NSCoder) {
+            coder.encodeInt32(value = value, forKey = "value")
+        }
+    }
 }

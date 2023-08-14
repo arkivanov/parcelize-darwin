@@ -1,5 +1,6 @@
 package com.arkivanov.parcelize.darwin
 
+import org.jetbrains.kotlin.ir.backend.js.utils.typeArguments
 import org.jetbrains.kotlin.ir.builders.IrBuilderWithScope
 import org.jetbrains.kotlin.ir.builders.createTmpVariable
 import org.jetbrains.kotlin.ir.builders.irBlock
@@ -16,6 +17,8 @@ import org.jetbrains.kotlin.ir.builders.irNotEquals
 import org.jetbrains.kotlin.ir.builders.irNull
 import org.jetbrains.kotlin.ir.builders.irString
 import org.jetbrains.kotlin.ir.builders.irTrue
+import org.jetbrains.kotlin.ir.declarations.IrClass
+import org.jetbrains.kotlin.ir.declarations.IrField
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
 import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
@@ -27,6 +30,10 @@ import org.jetbrains.kotlin.ir.types.makeNullable
 import org.jetbrains.kotlin.ir.util.companionObject
 import org.jetbrains.kotlin.ir.util.functions
 import org.jetbrains.kotlin.ir.util.getPropertyGetter
+import org.jetbrains.kotlin.ir.util.isAnnotation
+import org.jetbrains.kotlin.ir.util.isObject
+import org.jetbrains.kotlin.ir.util.parentAsClass
+import org.jetbrains.kotlin.ir.util.render
 
 interface Coder {
 
@@ -46,8 +53,21 @@ class CoderFactory(
     private val symbols: Symbols,
 ) {
 
-    fun get(type: IrType): Coder =
-        get(type = type.toSupportedType(symbols))
+    fun get(field: IrField): Coder =
+        get(
+            type = IrTypeToSupportedTypeMapper(
+                symbols = symbols,
+                typeParcelers = field.parentAsClass.extractTypeParcelers(),
+            ).map(type = field.type),
+        )
+
+    private fun IrClass.extractTypeParcelers(): Map<IrType, IrType> =
+        annotations
+            .filter { it.isAnnotation(typeParcelerName) }
+            .associateBy(
+                keySelector = { requireNotNull(it.typeArguments[0]) },
+                valueTransform = { requireNotNull(it.typeArguments[1]) },
+            )
 
     fun get(type: SupportedType): Coder =
         when (type) {
@@ -119,6 +139,13 @@ class CoderFactory(
                     isNullable = type.isNullable,
                     encodeFunction = symbols.encodeDouble,
                     decodeFunction = symbols.decodeDouble,
+                )
+
+            is SupportedType.Custom ->
+                CustomCoder(
+                    symbols = symbols,
+                    type = type.type,
+                    parcelerType = type.parcelerType,
                 )
 
             is SupportedType.String -> StringCoder(symbols = symbols)
@@ -244,6 +271,85 @@ private class PrimitiveCoder(
             decode
         }
     }
+}
+
+private class CustomCoder(
+    private val symbols: Symbols,
+    private val type: IrType,
+    private val parcelerType: IrType,
+) : Coder {
+    init {
+        require(parcelerType.requireClass().isObject) { "Parceler must be an object: ${parcelerType.render()}" }
+    }
+
+    override fun IrBuilderWithScope.encode(coder: IrExpression, value: IrExpression, key: IrExpression): IrExpression =
+        irBlock {
+            val archiver =
+                createTmpVariable(
+                    irCallCompat(
+                        callee = symbols.nsKeyedArchiverConstructor,
+                        arguments = listOf(irTrue()),
+                    )
+                )
+
+            +irCallCompat(
+                callee = parcelerType.requireClass().requireFunction(
+                    name = "write",
+                    valueParameterTypes = listOf(symbols.nsCoderType),
+                    extensionReceiverParameterType = type,
+                ),
+                extensionReceiver = value,
+                dispatchReceiver = irGetObject(parcelerType.classOrNull!!),
+                arguments = listOf(irGet(archiver)),
+            )
+
+            +irCallCompat(
+                callee = symbols.encodeObject,
+                extensionReceiver = coder,
+                arguments = listOf(
+                    irCallCompat(callee = symbols.encodedData, dispatchReceiver = irGet(archiver)),
+                    key,
+                )
+            )
+        }
+
+    override fun IrBuilderWithScope.decode(coder: IrExpression, key: IrExpression): IrExpression =
+        irBlock {
+            val data =
+                createTmpVariable(
+                    irCallCompat(
+                        callee = symbols.decodeObject,
+                        extensionReceiver = coder,
+                        arguments = listOf(
+                            irGetObject(symbols.nsDataClass.owner.companionObject()!!.symbol),
+                            key,
+                        ),
+                    )
+                )
+
+            val unarchiver =
+                createTmpVariable(
+                    irCallCompat(
+                        callee = symbols.nsKeyedUnarchiverConstructor,
+                        arguments = listOf(irGet(data)),
+                    )
+                )
+
+            +irCallCompat(
+                callee = symbols.setRequireSecureCoding,
+                dispatchReceiver = irGet(unarchiver),
+                arguments = listOf(irTrue()),
+            )
+
+            +irCallCompat(
+                callee = parcelerType.requireClass().requireFunction(
+                    name = "create",
+                    valueParameterTypes = listOf(symbols.nsCoderType),
+                ),
+                dispatchReceiver = irGetObject(parcelerType.classOrNull!!),
+                arguments = listOf(irGet(unarchiver)),
+            )
+        }
 }
 
 private class StringCoder(
@@ -474,7 +580,8 @@ private class CollectionCoder(
                         condition = irNotEquals(arg1 = irGet(index), arg2 = irGet(size)),
                         body = irBlock {
                             +irCallCompat(
-                                callee = collectionConstructor.owner.returnType.requireClass().requireFunction(name = "add"),
+                                callee = collectionConstructor.owner.returnType.requireClass()
+                                    .requireFunction(name = "add"),
                                 dispatchReceiver = irGet(collection),
                                 arguments = listOf(
                                     with(itemCoder) {
