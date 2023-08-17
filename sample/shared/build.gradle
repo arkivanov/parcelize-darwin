@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
 
 plugins {
@@ -16,10 +17,21 @@ android {
         targetSdkVersion 33
         minSdkVersion 28
     }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+}
+
+tasks.withType(KotlinCompile).configureEach {
+    kotlinOptions {
+        jvmTarget = "11"
+    }
 }
 
 kotlin {
-    android()
+    androidTarget()
     iosX64()
     iosArm64()
     iosSimulatorArm64()
