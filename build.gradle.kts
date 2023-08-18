@@ -44,7 +44,7 @@ setupDefaults(
         developerEmail = "arkann1985@gmail.com",
         signingKey = System.getenv("SIGNING_KEY"),
         signingPassword = System.getenv("SIGNING_PASSWORD"),
-        repositoryUrl = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2",
+        repositoryUrl = "https://s01.oss.sonatype.org/service/local/staging/deployByRepositoryId/${System.getenv("SONATYPE_REPOSITORY_ID")}",
         repositoryUserName = "arkivanov",
         repositoryPassword = System.getenv("SONATYPE_PASSWORD"),
     ),
