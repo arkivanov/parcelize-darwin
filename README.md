@@ -58,8 +58,11 @@ The plugin works similary to the Android's `kotlin-parcelize` plugin.
 
 The `runtime` module provides the following:
 
-- [Parcelable](https://github.com/arkivanov/parcelize-darwin/blob/master/runtime/src/darwinMain/kotlin/com/arkivanov/parcelize/darwin/Parcelable.kt) interface
-- [@Parcelize](https://github.com/arkivanov/parcelize-darwin/blob/master/runtime/src/darwinMain/kotlin/com/arkivanov/parcelize/darwin/Parcelize.kt) annotation
+- [Parcelable](https://github.com/arkivanov/parcelize-darwin/blob/master/runtime/src/darwinMain/kotlin/com/arkivanov/parcelize/darwin/Parcelable.kt) - interface for classes that require serialization/deserialization.
+- [@Parcelize](https://github.com/arkivanov/parcelize-darwin/blob/master/runtime/src/darwinMain/kotlin/com/arkivanov/parcelize/darwin/Parcelize.kt) - an annotation that instructs the compiler plugin to generate `Parcelable` implementations for the annotated classes.
+- [Parceler](https://github.com/arkivanov/parcelize-darwin/blob/master/runtime/src/darwinMain/kotlin/com/arkivanov/parcelize/darwin/Parceler.kt) - interface for custom `Parcelize` serializers.
+- [WriteWith](https://github.com/arkivanov/parcelize-darwin/blob/master/runtime/src/darwinMain/kotlin/com/arkivanov/parcelize/darwin/WriteWith.kt) - specifies what `Parceler` should be used for the annotated type.
+- [TypeParceler](https://github.com/arkivanov/parcelize-darwin/blob/master/runtime/src/darwinMain/kotlin/com/arkivanov/parcelize/darwin/TypeParceler.kt) - specifies what `Parceler` should be used for a particular type.
 - Some handy utils (can be used from Swift) - [Coding.kt](https://github.com/arkivanov/parcelize-darwin/blob/master/runtime/src/darwinMain/kotlin/com/arkivanov/parcelize/darwin/Coding.kt)
 
 ## Examples
@@ -83,11 +86,62 @@ A complete example can be found here - [sample](https://github.com/arkivanov/par
 
 An example of the generated code can be found here - [SomeParcelable.kt](https://github.com/arkivanov/parcelize-darwin/blob/master/runtime/src/darwinTest/kotlin/com/arkivanov/parcelize/darwin/SomeParcelable.kt).
 
-### Writing Parcelable classes in commonMain
+### Custom parcelers (starting from v0.2.0)
+
+Suppose there is a type that we don't own and it has to be included in a `Parcelable` class.
+
+```kotlin
+class SomeTypeYouDontOwn(val someValue: Int)
+
+@Parcelize
+data class Foo(
+    val data: SomeTypeYouDontOwn,
+) : Parcelable
+```
+
+The above snippet won't compile because the compiler plugin doesn't know how to serialize `SomeTypeYouDontOwn`. Usually just implementing `Parcelable` interface and adding `@Parcelize` annotation would work, but not in this case, because we don't own that type. A solution is to write a custom parceler.
+
+Write a `Parceler` object for that class.
+
+```kotlin
+internal object SomeTypeYouDontOwnParceler : Parceler<SomeTypeYouDontOwn> {
+    override fun create(coder: NSCoder): SomeTypeYouDontOwn =
+        SomeTypeYouDontOwn(
+            someValue = coder.decodeInt32ForKey(key = "someValue"),
+        )
+
+    override fun SomeTypeYouDontOwn.write(coder: NSCoder) {
+        coder.encodeInt32(value = someValue, forKey = "someValue")
+    }
+}
+```
+
+Now there are two ways of serializing that class.
+
+#### Using WriteWith annotation
+
+```kotlin
+@Parcelize
+data class Foo(
+    val data: @WriteWith<SomeTypeYouDontOwnParceler> SomeTypeYouDontOwn,
+) : Parcelable
+```
+
+#### Using TypeParceler annotation
+
+```kotlin
+@TypeParceler<SomeTypeYouDontOwn, SomeTypeYouDontOwnParceler>
+@Parcelize
+data class Foo(
+    val data: SomeTypeYouDontOwn,
+) : Parcelable
+```
+
+## Writing Parcelable classes in commonMain
 
 The plugin can be used to write `Parcelable` classes in the `commonMain` source set. The recommended way is to use Essenty library, its [parcelable](https://github.com/arkivanov/Essenty#parcelable-and-parcelize) module bridges both Android and Darwin implementations in `commonMain`. There are APIs for state preservation as well.
 
-#### Manual usage
+### Manual usage
 
 1. Define the following expectactions in the `commonMain` source set:
 
@@ -126,12 +180,12 @@ actual interface Parcelable
 Now you should be able to use `Parcelize` feature as usual in the `commonMain` source set.
 The code will be automatically generated for Android and iOS, without affecting all other targets.
 
-### Limitations
+## Limitations
 
 There is no proper IDE support at the moment. So `Parcelable` classes in the `iosMain` source set
 are highlighted as incomplete, but the code still compiles just fine. There are no IDE errors in the `commonMain` source set.
 
-### Tests as usage examples
+## Tests as usage examples
 
 Some tests can be found [here](https://github.com/arkivanov/parcelize-darwin/blob/master/tests/src/darwinTest/kotlin/com/arkivanov/parcelize/darwin/tests/ParcelizeTest.kt).
 
