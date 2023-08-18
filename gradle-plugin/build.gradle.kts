@@ -1,4 +1,5 @@
 import com.arkivanov.gradle.setupPublication
+import com.github.gmazzo.gradle.plugins.BuildConfigTask
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
@@ -34,6 +35,11 @@ tasks.withType<KotlinCompile> {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+}
+
+// Workaround for https://github.com/gmazzo/gradle-buildconfig-plugin/issues/67
+tasks.named("sourceJarTask").configure {
+    mustRunAfter(tasks.withType<BuildConfigTask>())
 }
 
 buildConfig {
