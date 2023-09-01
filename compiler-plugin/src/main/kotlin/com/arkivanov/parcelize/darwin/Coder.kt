@@ -26,6 +26,7 @@ import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.types.classOrNull
 import org.jetbrains.kotlin.ir.types.getClass
 import org.jetbrains.kotlin.ir.types.isString
+import org.jetbrains.kotlin.ir.types.makeNotNull
 import org.jetbrains.kotlin.ir.types.makeNullable
 import org.jetbrains.kotlin.ir.util.companionObject
 import org.jetbrains.kotlin.ir.util.functions
@@ -284,70 +285,101 @@ private class CustomCoder(
 
     override fun IrBuilderWithScope.encode(coder: IrExpression, value: IrExpression, key: IrExpression): IrExpression =
         irBlock {
-            val archiver =
-                createTmpVariable(
-                    irCallCompat(
-                        callee = symbols.nsKeyedArchiverConstructor,
-                        arguments = listOf(irTrue()),
-                    )
-                )
+            val obj = createTmpVariable(value)
+            val exists = createTmpVariable(irNotEquals(irGet(obj), irNull()))
 
             +irCallCompat(
-                callee = parcelerType.requireClass().requireFunction(
-                    name = "write",
-                    valueParameterTypes = listOf(symbols.nsCoderType),
-                    extensionReceiverParameterType = type,
-                ),
-                extensionReceiver = value,
-                dispatchReceiver = irGetObject(parcelerType.classOrNull!!),
-                arguments = listOf(irGet(archiver)),
+                callee = symbols.encodeBoolean,
+                extensionReceiver = coder,
+                arguments = listOf(irGet(exists), irConcatStrings(key, irString("-exists"))),
             )
 
-            +irCallCompat(
-                callee = symbols.encodeObject,
-                extensionReceiver = coder,
-                arguments = listOf(
-                    irCallCompat(callee = symbols.encodedData, dispatchReceiver = irGet(archiver)),
-                    key,
-                )
+            +irIfThen(
+                type = symbols.unitType,
+                condition = irGet(exists),
+                thenPart = irBlock {
+                    val archiver =
+                        createTmpVariable(
+                            irCallCompat(
+                                callee = symbols.nsKeyedArchiverConstructor,
+                                arguments = listOf(irTrue()),
+                            )
+                        )
+
+                    +irCallCompat(
+                        callee = parcelerType.requireClass().requireFunction(
+                            name = "write",
+                            valueParameterTypes = listOf(symbols.nsCoderType),
+                            extensionReceiverParameterType = type.makeNotNull(),
+                        ),
+                        extensionReceiver = irGet(obj),
+                        dispatchReceiver = irGetObject(parcelerType.classOrNull!!),
+                        arguments = listOf(irGet(archiver)),
+                    )
+
+                    +irCallCompat(
+                        callee = symbols.encodeObject,
+                        extensionReceiver = coder,
+                        arguments = listOf(
+                            irCallCompat(callee = symbols.encodedData, dispatchReceiver = irGet(archiver)),
+                            key,
+                        )
+                    )
+                },
             )
         }
 
     override fun IrBuilderWithScope.decode(coder: IrExpression, key: IrExpression): IrExpression =
         irBlock {
-            val data =
+            val exists =
                 createTmpVariable(
                     irCallCompat(
-                        callee = symbols.decodeObject,
+                        callee = symbols.decodeBoolean,
                         extensionReceiver = coder,
-                        arguments = listOf(
-                            irGetObject(symbols.nsDataClass.owner.companionObject()!!.symbol),
-                            key,
+                        arguments = listOf(irConcatStrings(key, irString("-exists"))),
+                    )
+                )
+
+            +irIfThenElse(
+                type = type,
+                condition = irGet(exists),
+                thenPart = irBlock {
+                    val data =
+                        createTmpVariable(
+                            irCallCompat(
+                                callee = symbols.decodeObject,
+                                extensionReceiver = coder,
+                                arguments = listOf(
+                                    irGetObject(symbols.nsDataClass.owner.companionObject()!!.symbol),
+                                    key,
+                                ),
+                            )
+                        )
+
+                    val unarchiver =
+                        createTmpVariable(
+                            irCallCompat(
+                                callee = symbols.nsKeyedUnarchiverConstructor,
+                                arguments = listOf(irGet(data)),
+                            )
+                        )
+
+                    +irCallCompat(
+                        callee = symbols.setRequireSecureCoding,
+                        dispatchReceiver = irGet(unarchiver),
+                        arguments = listOf(irTrue()),
+                    )
+
+                    +irCallCompat(
+                        callee = parcelerType.requireClass().requireFunction(
+                            name = "create",
+                            valueParameterTypes = listOf(symbols.nsCoderType),
                         ),
+                        dispatchReceiver = irGetObject(parcelerType.classOrNull!!),
+                        arguments = listOf(irGet(unarchiver)),
                     )
-                )
-
-            val unarchiver =
-                createTmpVariable(
-                    irCallCompat(
-                        callee = symbols.nsKeyedUnarchiverConstructor,
-                        arguments = listOf(irGet(data)),
-                    )
-                )
-
-            +irCallCompat(
-                callee = symbols.setRequireSecureCoding,
-                dispatchReceiver = irGet(unarchiver),
-                arguments = listOf(irTrue()),
-            )
-
-            +irCallCompat(
-                callee = parcelerType.requireClass().requireFunction(
-                    name = "create",
-                    valueParameterTypes = listOf(symbols.nsCoderType),
-                ),
-                dispatchReceiver = irGetObject(parcelerType.classOrNull!!),
-                arguments = listOf(irGet(unarchiver)),
+                },
+                elsePart = irNull(),
             )
         }
 }

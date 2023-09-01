@@ -3,6 +3,7 @@ package com.arkivanov.parcelize.darwin
 import org.jetbrains.kotlin.backend.jvm.ir.erasedUpperBound
 import org.jetbrains.kotlin.ir.backend.js.utils.typeArguments
 import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.types.makeNotNull
 import org.jetbrains.kotlin.ir.types.typeOrNull
 import org.jetbrains.kotlin.ir.util.defaultType
 import org.jetbrains.kotlin.ir.util.getAnnotation
@@ -38,6 +39,9 @@ class IrTypeToSupportedTypeMapper(
     private val typeParcelers: Map<IrType, IrType>,
 ) {
     fun map(type: IrType): SupportedType =
+        map(type = type, nonNullType = type.makeNotNull())
+
+    private fun map(type: IrType, nonNullType: IrType): SupportedType =
         when {
             type == symbols.intType -> SupportedType.PrimitiveInt(isNullable = false)
             type == symbols.intNType -> SupportedType.PrimitiveInt(isNullable = true)
@@ -56,16 +60,16 @@ class IrTypeToSupportedTypeMapper(
             type == symbols.booleanType -> SupportedType.PrimitiveBoolean(isNullable = false)
             type == symbols.booleanNType -> SupportedType.PrimitiveBoolean(isNullable = true)
 
-            type.hasAnnotation(writeWithName) ->
+            nonNullType.hasAnnotation(writeWithName) ->
                 SupportedType.Custom(
                     type = type,
-                    parcelerType = requireNotNull(type.getAnnotation(writeWithName)?.typeArguments?.first()),
+                    parcelerType = requireNotNull(nonNullType.getAnnotation(writeWithName)?.typeArguments?.first()),
                 )
 
-            type in typeParcelers ->
+            nonNullType in typeParcelers ->
                 SupportedType.Custom(
                     type = type,
-                    parcelerType = typeParcelers.getValue(type),
+                    parcelerType = typeParcelers.getValue(nonNullType),
                 )
 
             (type == symbols.stringType) || (type == symbols.stringNType) -> SupportedType.String
