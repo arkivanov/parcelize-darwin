@@ -1,10 +1,12 @@
 package com.arkivanov.parcelize.darwin
 
+import kotlinx.cinterop.BetaInteropApi
+import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSArray
 import platform.Foundation.NSCoder
 import platform.Foundation.NSLock
 import platform.Foundation.decodeObjectForKey
-import platform.Foundation.decodeObjectOfClass
+import platform.Foundation.decodeTopLevelObjectOfClass
 import platform.Foundation.encodeObject
 import platform.Foundation.firstObject
 
@@ -19,10 +21,11 @@ fun NSCoder.encodeParcelableOrNull(value: Parcelable?, key: String) {
 /**
  * Decodes a previously encoded [Parcelable] with the provided [key]. The returned [Parcelable] can be null.
  */
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 @Throws(IllegalStateException::class)
 @Suppress("UNCHECKED_CAST")
 fun <T : Parcelable> NSCoder.decodeParcelableOrNull(key: String): T? =
-    (decodeObjectOfClass(aClass = NSLock, forKey = key) as NSArray?)?.firstObject as T?
+    (decodeTopLevelObjectOfClass(aClass = NSLock, forKey = key, error = null) as NSArray?)?.firstObject as T?
 
 /**
  * Encodes the provided [Parcelable] [value] with the provided [key].
