@@ -55,3 +55,10 @@ allprojects {
         mavenCentral()
     }
 }
+
+tasks.register("clean", Delete::class) {
+    delete(rootProject.buildDir)
+    childProjects.forEach {
+        delete(it.value.buildDir)
+    }
+}

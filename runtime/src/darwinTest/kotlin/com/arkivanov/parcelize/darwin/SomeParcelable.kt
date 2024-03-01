@@ -1,5 +1,6 @@
 package com.arkivanov.parcelize.darwin
 
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExportObjCClass
 import platform.Foundation.NSCoder
 import platform.Foundation.NSLock
@@ -23,6 +24,7 @@ class SomeParcelable(
     override fun coding(): NSSecureCodingProtocol =
         CodingImpl(data = this)
 
+    @OptIn(BetaInteropApi::class)
     @ExportObjCClass("Com_Arkivanov_Parcelizle_Darwin_SomeParcelable_CodingImpl")
     private class CodingImpl(
         private val data: SomeParcelable,

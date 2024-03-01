@@ -1,5 +1,4 @@
 dependencyResolutionManagement {
-    @Suppress("UnstableApiUsage")
     versionCatalogs {
         create("deps") {
             from(files("deps.versions.toml"))

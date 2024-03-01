@@ -1,11 +1,10 @@
 [versions]
 
-plugin = "0.2.3"
-kotlin = "1.9.20"
-buildConfigGradlePlugin = "4.1.2"
+plugin = "0.2.4"
+kotlin = "1.9.22"
+buildConfigGradlePlugin = "5.3.5"
 
 [libraries]
-
 kotlin-kotlinGradlePlug = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlin" }
 kotlin-kotlinGradlePluginApi = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin-api", version.ref = "kotlin" }
 kotlin-kotlinCompilerEmbeddable = { group = "org.jetbrains.kotlin", name = "kotlin-compiler-embeddable", version.ref = "kotlin" }
